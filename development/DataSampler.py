@@ -27,7 +27,7 @@ class DataSampler(Dataset):
         # self.Y = torch.tensor(pd.read_csv(Y_path, index_col=0).values, dtype=torch.float32).to(device)
         Y = pl.read_csv(Y_path)
         Y_idx_sites = Y.select(pl.first())
-        Y = Y.select(pl.exclude([pl.String]))  # TODO: Might remove more than fieldsample barcode
+        Y = Y.select(Y.columns[1:])  # Remove species names
         Y_cols_species = np.array(Y.columns)
         self.Y = torch.tensor(Y.to_numpy(), dtype=torch.float32)
 
@@ -35,6 +35,16 @@ class DataSampler(Dataset):
         self.Y_cols_species = Y_cols_species
 
         XData = pd.read_csv(X_path, index_col=0)
+
+        XData = XData.loc[:, XData.std() != 0]  # Remove variables with no variance
+
+        # Removing spatial data
+        XData = XData.loc[:, ~XData.columns.str.contains("georeg", case=False)]
+        XData = XData.loc[:, ~XData.columns.str.contains("ogc_lite_pi0000", case=False)]
+        # Add lat,lon
+        # lon_lat = pd.read_csv(coords_path, index_col=0)
+        # XData[["longitude", "latitude"]] = lon_lat.values
+
         self.sites = list(XData.index)
         self.environmental = list(XData.columns)
         self.X = torch.tensor(XData.values, dtype=torch.float32)
@@ -54,9 +64,9 @@ class DataSampler(Dataset):
 
             # self.X = self.X[:, self.X_continuous]  # TODO: Remove after testing
 
-            # # Intercept
-            # self.X = torch.cat((torch.ones(self.X.shape[0], 1), self.X), dim=1)
-            # self.environmental = ["intercept"] + self.environmental
+            # Intercept
+            self.X = torch.cat((torch.ones(self.X.shape[0], 1), self.X), dim=1)
+            self.environmental = ["intercept"] + self.environmental
             # self.X_og_mean = torch.cat((torch.tensor([0]), self.X_og_mean))
             # self.X_og_std = torch.cat((torch.tensor([1]), self.X_og_std))
 
@@ -77,9 +87,22 @@ class DataSampler(Dataset):
         if self.using_coordinates:
             self.coords = torch.tensor(pd.read_csv(coords_path, index_col=0).values, dtype=torch.float32)
 
+            if False:  # to northing/easting km
+                print("CHANGING TO NORTHING EASTING COORDINATES")
+                import pyproj
+
+                p = pyproj.Proj(proj='utm', zone=32, ellps='WGS84')
+                northing, easting = p(self.coords[:, 0].numpy(), self.coords[:, 1].numpy())
+                northing, easting = torch.from_numpy(northing), torch.from_numpy(easting)
+                self.coords = torch.stack([northing, easting], dim=1)
+                # self.coords = torch.round(self.coords, decimals=-1)
+
+                self.coords = self.coords / 1e3
+                self.coords = self.coords.int().float()
+
             self.unique_coords, self.coords_inverse_indicies = torch.unique(self.coords, dim=0, return_inverse=True)
             print(f"{len(self.unique_coords)=}")
-            self.dist_matrix = get_distance_matrix(self.unique_coords)
+            # self.dist_matrix = get_distance_matrix(self.unique_coords)
 
             self.n_locs = len(self.unique_coords)
 
@@ -135,12 +158,14 @@ class DataSampler(Dataset):
         if self.using_coordinates:
             unique_locs_idx, reverse = self.get_dist_idx_reverse(idx)
             # Data
-            batch.update({"dist": self.get_dist(unique_locs_idx).to(self.device),
-                          "coords": self.coords[unique_locs_idx].to(self.device)})
+            batch.update({
+                #"dist": self.get_dist(unique_locs_idx).to(self.device),
+                "coords": self.coords[unique_locs_idx].to(self.device)
+            })
             # Metadata
             batch.update({
                 "n_locs_total": self.n_locs,
-                "n_locs_batch": batch.get("dist").shape[0],
+                "n_locs_batch": batch.get("coords").shape[0],
                 "unique_batch_locs": unique_locs_idx,
                 "batch_inverse": reverse,
             })
@@ -179,17 +204,17 @@ class DataSampler(Dataset):
         else:
             return self.Y[idx].to(self.device)
 
-    def get_dist(self, idx=None):
-        """
-
-        :param idx: Be the unique idx from get_dis_idx_reverse
-        :return:
-        """
-        assert self.using_coordinates, "No coordinates given!"
-        if idx is None:
-            return self.dist_matrix
-        else:
-            return self.dist_matrix[idx][:, idx].to(self.device)
+    # def get_dist(self, idx=None):
+    #     """
+    #
+    #     :param idx: Be the unique idx from get_dis_idx_reverse
+    #     :return:
+    #     """
+    #     assert self.using_coordinates, "No coordinates given!"
+    #     if idx is None:
+    #         return self.dist_matrix
+    #     else:
+    #         return self.dist_matrix[idx][:, idx].to(self.device)
 
     def get_X_dist(self, idx=None):
         """
@@ -197,7 +222,6 @@ class DataSampler(Dataset):
         :param idx: Be the unique idx from get_dis_idx_reverse
         :return:
         """
-        # assert self.using_coordinates, "No coordinates given!"
         if idx is None:
             return self.X_dist_matrix
         else:

@@ -176,3 +176,4 @@ cython_debug/
 data/
 results/
 data_folder_path.py
+wandb/

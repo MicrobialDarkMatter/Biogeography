@@ -35,4 +35,14 @@ def calculate_metrics(y_true, y_pred):
     mae = (mae[~torch.isnan(mae)]).mean().item()
     res["MAE"] = mae
 
+    # PR AUC
+    pr_auc_per_species = [
+        metrics.average_precision_score(y_true[:, i], y_pred[:, i]) if not all(
+            y_true[:, i] == 0) else float("nan") for i in
+        range(y_true.shape[1])
+    ]
+    pr_auc = torch.tensor(pr_auc_per_species)
+    pr_auc = (pr_auc[~torch.isnan(pr_auc)]).mean().item()
+    res["PR_AUC"] = pr_auc
+
     return res

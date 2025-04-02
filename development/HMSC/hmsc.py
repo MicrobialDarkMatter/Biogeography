@@ -107,7 +107,7 @@ class HMSC_GP(pyro.nn.PyroModule):
     def __init__(self, unique_coordinates):
         super().__init__()
 
-        self.n_spatial = 5
+        self.n_spatial = 5  # TODO: put in init
         self.eta = SpatialGPModel(num_latents=self.n_spatial, unique_coordinates=unique_coordinates)
 
     def model(self, batch, likelihood):
@@ -149,9 +149,9 @@ class HMSC_GP(pyro.nn.PyroModule):
     def hmsc_spatial_model(self, batch):
         device = batch.get("device")
 
-        lengthscale = torch.ones(4, device=device)  # TODO: Add such that it can be modified!
+        lengthscale = torch.ones(self.n_spatial, device=device)  # TODO: Add such that it can be modified!
 
-        n_latents = len(lengthscale)
+        n_latents = self.n_spatial
 
         # ### ETAS ### #
         inverse_indices = batch.get("batch_inverse")
@@ -242,7 +242,7 @@ class HMSC_GP(pyro.nn.PyroModule):
         if "dist" in batch:
             n_locs_total = batch.get("n_locs_total")
             # eta
-            n_latents = len(torch.ones(4, device=device))  # TODO: Make this an argument
+            n_latents = self.n_spatial
 
             unique_batch_sites = batch.get("unique_batch_locs")  # _ = reverse unique, but not neded in guide?
 
@@ -432,7 +432,7 @@ def train_svi_cv(k_fold, train_dataset, batch_size, epoch, model, guide, likelih
 
 
 def learn_model():
-    from configs.config import config
+    from configs.config_butterfly import config
 
     dataset = CustomDataSubsampling(
         Y_path=config["data"]["Y_path"],

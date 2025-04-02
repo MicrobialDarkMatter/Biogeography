@@ -25,7 +25,7 @@ config = {
         "n_inducing_points": 200,
     },
     "spatial": {
-        "n_latents": 5,
+        "n_latents": 1,
         "n_inducing_points": 500,
     },
     "hmsc": {
