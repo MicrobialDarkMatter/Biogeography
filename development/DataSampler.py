@@ -11,7 +11,7 @@ from development.misc.distance_matrix import get_distance_matrix  # TODO: Fix im
 
 
 class DataSampler(Dataset):
-    def __init__(self, Y_path, X_path, coords_path, device, normalize_X: bool, traits_path: str=""):
+    def __init__(self, Y_path, X_path, coords_path, device, normalize_X: bool, traits_path: str="", prevalence_threshold=0):
         """
         Initializes the DataLoader with tensor data and batch size.
 
@@ -75,8 +75,8 @@ class DataSampler(Dataset):
 
         # All counts are zero in column 5, so we first drop it
         # keep_Y = self.Y.bool().sum(dim=0) > 0
-        all_species = self.Y.shape[1]
-        keep_Y = self.Y.bool().sum(dim=0) > all_species * 0.1  # Only keeping species with % abundance or more
+        all_sites, all_species = self.Y.shape
+        keep_Y = self.Y.bool().sum(dim=0) > all_sites * prevalence_threshold  # Only keeping species with % abundance or more
         keep_Y = keep_Y & self.Y.std(
             dim=0).bool()  # TODO: remove? Only keeping species that are either all present or absent
         self.Y = self.Y[:, keep_Y]
