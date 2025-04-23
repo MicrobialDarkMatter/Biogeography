@@ -85,7 +85,7 @@ class MicroGP(pyro.nn.PyroModule):
             #          with pyro.plate(name="species_plate-a", size=n_species):# species_plate, latents_plate:
 
             with pyro.plate("species_plate-a", size=n_species, dim=-1):
-                w = pyro.sample("w", dist.Normal(loc=w_loc, scale=torch.ones_like(w_loc)).to_event(1))
+                w = pyro.sample("w", dist.Normal(loc=w_loc, scale=torch.ones_like(w_loc) * 100).to_event(1))
 
             f_samples = f_samples if f_samples.shape == torch.Size([n_samples, self.n_latents_env]) else f_samples.mean(
                 dim=0).reshape(n_samples, self.n_latents_env)
@@ -240,8 +240,8 @@ class EnvironmentGP(gpytorch.models.ApproximateGP):
             batch_shape=torch.Size([n_latents])
         )
 
-        self.covar_module.base_kernel.lengthscale = torch.rand(n_latents, 1, n_variables)
-        self.covar_module.outputscale = torch.rand(n_latents, 1, 1)
+        # self.covar_module.base_kernel.lengthscale = torch.rand(n_latents, 1, n_variables)
+        # self.covar_module.outputscale = torch.rand(n_latents, 1, 1)
 
     def forward(self, x):
         # The forward function should be written as if we were dealing with each output
@@ -399,6 +399,13 @@ if __name__ == "__main__":
 
         train_dataset, test_dataset = random_split(dataset, [train_size, test_size],
                                                    generator=torch.Generator().manual_seed(42))
+
+    # Make sure at least 10 species obserservations are present in each subset of the data
+    keep_y = (dataset.Y[train_dataset.indices].sum(dim=0) >= 10) & (
+                dataset.Y[test_dataset.indices].sum(dim=0) >= 10)
+    dataset.Y = dataset.Y[:, keep_y]
+    dataset.traits = dataset.traits[keep_y, :]
+    dataset.n_species = dataset.Y.shape[1]
 
     train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
 
