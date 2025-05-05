@@ -37,6 +37,6 @@ config = {
     "additive": {  # To specify if certain components should be included or omitted.
         "environment": True,
         "spatial": False,
-        "traits": True,
+        "traits": False,
     }
 }

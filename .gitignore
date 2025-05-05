@@ -177,3 +177,5 @@ data/
 results/
 data_folder_path.py
 wandb/
+
+development/*

@@ -14,7 +14,7 @@ config = {
     },
     "general": {
         "n_iter": 100,
-        "n_particles": 8,
+        "n_particles": 1,
         "lr": 0.01,
         "batch_size": 512,
         "train_pct": 0.8,
@@ -37,6 +37,6 @@ config = {
     "additive": {  # To specify if certain components should be included or omitted.
         "environment": True,
         "spatial": False,
-        "traits": True,
+        "traits": False,
     }
 }

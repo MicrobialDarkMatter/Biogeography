@@ -333,7 +333,7 @@ if __name__ == "__main__":
     # Add the parent directory (or any other directory where the config module is located) to the Python path
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../configs')))
 
-    from config import config  # Import the config module
+    from configs.config import config  # Import the config module
 
     # ARGUMENTS
     environment = config["additive"]["environment"]
@@ -429,154 +429,42 @@ if __name__ == "__main__":
 
     model.train()
 
-    lengthscale_trace = []
-    variance_trace = []
+    iterator = tqdm.tqdm(range(n_iter))
+    for i in iterator:
+        loss = 0
+        for idx in train_dataloader:
+            batch = train_dataset.dataset.get_batch_data(idx)
+            loss += svi.step(batch) / batch.get("Y").nelement()
 
-    with wandb.init(entity="DarkScience", project="Biogeography", config=config) as run:
-
-        # Store parameters
-        param_history = {}
-
-        iterator = tqdm.tqdm(range(n_iter))
-        for i in iterator:
-            loss = 0
-            for idx in train_dataloader:
-                batch = train_dataset.dataset.get_batch_data(idx)
-                loss += svi.step(batch) / batch.get("Y").nelement()
-
-            run.log({"loss": loss / len(train_dataloader)})
-            iterator.set_postfix(loss=loss)
-
-            # Retrieve all parameters dynamically
-            for name, param in pyro.get_param_store().items():
-                if name not in param_history:
-                    param_history[name] = []
-                param_history[name].append(param.detach().clone())
-
-        param_tensors = {name: torch.stack(values, dim=0).reshape(n_iter, -1) for name, values in param_history.items()}
-        for name, params in param_tensors.items():
-            if params.nelement() < n_iter * 1_000:
-                fig = go.Figure(
-                    data=[
-                        go.Scattergl(y=params[:, i].tolist(), x=list(range(n_iter)), mode='lines', opacity=0.5)
-                        for i in range(params.shape[1])
-                    ]
-                )
-
-                # Update layout
-                fig.update_layout(xaxis_title="Epochs", showlegend=False)
-
-                run.log({name: fig})
-
-        # # Save model
-        # torch.save(model, f"../results/saved_models/model.pt")
-        # pyro.get_param_store().save(f"../results/saved_models/param_store.pt")
-        # torch.save(dataset, f"../results/saved_models/dataset.pt")
-
-        test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True)
-
-        y_prob_list = []
-        y_test_list = []
-        for idx in test_dataloader:
-            batch = test_dataset.dataset.get_batch_data(idx)
-            batch["training"] = False
-            batch["do_spatial"] = True
-
-            predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=50)
-            y_prob = predictive(batch)["y"].mean(dim=0)
-            y_prob_list.append(y_prob)
-
-            y_test_list.append(batch.get("Y"))
-
-        y_prob = torch.concat(y_prob_list)
-        test_Y = torch.concat(y_test_list)
-        del y_prob_list, y_test_list
-
-        test_Y_prev = test_Y.sum(dim=0) / test_Y.shape[0]
-
-        p_at_k = precision_at_k(labels=test_Y, preds=y_prob, k=50)[1]
-        print(f"{precision_at_k(labels=test_Y, preds=y_prob, k=50)[0]=}")
-
-        auc_per_species = [
-            metrics.roc_auc_score(test_Y[:, i], y_prob[:, i]) if not all(
-                test_Y[:, i] == 0) else float("nan") for i in
-            range(test_Y.shape[1])
-        ]
-
-        auc = torch.tensor(auc_per_species)
-        means_tensor = auc[~torch.isnan(auc)]
-
-        if True:  # Histogram
-            # Assuming means_tensor is already defined
-            bin_edges = [round(i * 0.1, 2) for i in range(11)]
-            hist_data = means_tensor.numpy()  # Convert PyTorch tensor to NumPy array
-
-            # Create histogram
-            hist, bins = torch.histc(means_tensor, bins=len(bin_edges) - 1, min=0, max=1), bin_edges
-            hist = hist / len(means_tensor) * 100  # Normalize to percentage
-
-            # Create a figure
-            fig = go.Figure()
-
-            # Add horizontal gridlines
-            for y in range(5, int(max(hist)) + 5, 5):
-                fig.add_hline(y=y, line=dict(color='gray', dash='dash', width=1))
-
-            # Add histogram trace
-            fig.add_trace(go.Histogram(
-                x=hist_data,
-                histnorm='percent',  # Normalize to percentage
-                xbins=dict(start=0, end=1, size=0.1),  # Set bin edges
-                marker=dict(color='blue', line=dict(color='black', width=1)),
-                opacity=0.7
-            ))
-
-            # Add vertical red line at x = 0.5
-            fig.add_vline(x=0.5, line=dict(color='red', width=2, dash='solid'))
-
-            # Add titles and labels
-            fig.update_layout(
-                # title=f'MicroGP – ROC AUC: {round(means_tensor.mean().item(), 3)} – Spatial: {spatial} – Traits: {traits}',
-                xaxis_title='ROC AUC Bar',
-                yaxis_title='Percentage',
-                template='plotly',
-                bargap=0.1,
-                xaxis=dict(range=[0, 1])  # Ensuring x-axis goes from 0 to 1
-            )
-
-            # Log the figure (if needed for a W&B run)
-            run.log({"AUC Histogram": fig})
-
-        metric_results = calculate_metrics(test_Y, y_prob)
-
-        print(metric_results)
-
-        if True:
-            prevalence = test_Y.sum(dim=0) / test_Y.shape[0]
-            bin0 = (prevalence <= 0.01)
-            #bin1 = ((prevalence > 0.001) & (prevalence <= 0.01))
-            bin2 = ((prevalence > 0.01) & (prevalence <= 0.1))
-            bin3 = (prevalence > 0.1)
-
-            metric_results = calculate_metrics(test_Y[:, bin0], y_prob[:, bin0])
-            print("bin0", metric_results)
-            # metric_results = calculate_metrics(test_Y[:, bin1], y_prob[:, bin1])
-            # print("bin1", metric_results)
-            metric_results = calculate_metrics(test_Y[:, bin2], y_prob[:, bin2])
-            print("bin2", metric_results)
-            metric_results = calculate_metrics(test_Y[:, bin3], y_prob[:, bin3])
-            print("bin3", metric_results)
+        iterator.set_postfix(loss=loss)
 
 
-        if spatial:
-            print(f"{model.eta.covar_module.base_kernel.lengthscale=}")
+    # # Save model
+    # torch.save(model, f"../results/saved_models/model.pt")
+    # pyro.get_param_store().save(f"../results/saved_models/param_store.pt")
+    # torch.save(dataset, f"../results/saved_models/dataset.pt")
 
-        # if "cp68wp" in x_path:
-        #     save_results("/Users/cp68wp/Documents/GitHub/Biogeography/results/run_results.xlsx", x_path, y_path,
-        #                  coords_path, traits_path, n_latents_env, n_iter, n_particles, device, lr, batch_size,
-        #                  train_pct, n_inducing_points_env, n_species=dataset.n_species, n_samples=dataset.n_samples,
-        #                  n_env=dataset.n_env, n_traits=None, model_name=model._get_name(), note="Notes",
-        #                  auc=metric_results["AUC"], nll=metric_results["NLL"], mae=metric_results["MAE"], path_figs="",
-        #                  path_model="")
+    test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True)
 
-    print("Done")
+    y_prob_list = []
+    y_test_list = []
+    for idx in test_dataloader:
+        batch = test_dataset.dataset.get_batch_data(idx)
+        batch["training"] = False
+        batch["do_spatial"] = True
+
+        predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=50)
+        y_prob = predictive(batch)["y"].mean(dim=0)
+        y_prob_list.append(y_prob)
+
+        y_test_list.append(batch.get("Y"))
+
+    y_prob = torch.concat(y_prob_list)
+    test_Y = torch.concat(y_test_list)
+    del y_prob_list, y_test_list
+
+    test_Y_prev = test_Y.sum(dim=0) / test_Y.shape[0]
+
+    metric_results = calculate_metrics(test_Y, y_prob)
+
+    print(metric_results)
