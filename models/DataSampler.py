@@ -7,7 +7,7 @@ import numpy as np
 
 from torch.utils.data import DataLoader, Dataset
 
-from development.misc.distance_matrix import get_distance_matrix  # TODO: Fix import when moved
+from models.misc.distance_matrix import get_distance_matrix  # TODO: Fix import when moved
 
 
 class DataSampler(Dataset):

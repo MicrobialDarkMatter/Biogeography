@@ -13,10 +13,10 @@ from sklearn.model_selection import KFold
 
 import gpytorch
 
-from development.MultitaskVariationalStrategy import MultitaskVariationalStrategy
+from models.MultitaskVariationalStrategy import MultitaskVariationalStrategy
 
-from development.DataSampler import DataSampler as CustomDataSubsampling  # TODO: Fix import when moved
-from development.HMSC.spatial.eta_covariance_matrix import get_eta_covariance_matrix
+from models.DataSampler import DataSampler as CustomDataSubsampling  # TODO: Fix import when moved
+from spatial.eta_covariance_matrix import get_eta_covariance_matrix
 
 
 class HaversineRBFKernel(gpytorch.kernels.Kernel):
@@ -511,31 +511,7 @@ def learn_model():
     auc = torch.tensor(auc_per_species)
     means_tensor = auc[~torch.isnan(auc)]
 
-    if False:  # Histogram
-        bin_edges = [round(i * 0.1, 2) for i in range(11)]
-        n, bins, patches = plt.hist(means_tensor, bins=bin_edges, color='blue', alpha=0.7, edgecolor='black',
-                                    weights=(torch.ones_like(means_tensor) / len(means_tensor) * 100))
-        plt.title(f'HMSC – ROC AUC – Spatial: {dataset.using_coordinates} – Traits: {dataset.using_traits}')
-        plt.xlabel('ROC AUC Bar')
-        plt.ylabel('Percentage')
-        # Add horizontal grid lines
-        for y in range(5, int(max(n)) + 5, 5):
-            plt.axhline(y=y, color='gray', linestyle='--', linewidth=0.8, alpha=0.7)
-
-        plt.axvline(x=0.5, color='red', linestyle='-', linewidth=0.8, alpha=0.7)
-        plt.show()
-        plt.clf()
-
-    if False:  # Metrics
-        above_average = (means_tensor > 0.5).sum().item()
-        below_average = (means_tensor <= 0.5).sum().item()
-
-        pct_good = above_average / (above_average + below_average)
-        print(f"Species ROC above 50%: {pct_good * 100:.2f}%")
-
-        print(f"Species ROC above 50% * average: {pct_good * means_tensor.mean():.4f}")
-
-    from development.misc.calculate_metrics import calculate_metrics
+    from models.misc.calculate_metrics import calculate_metrics
     res = calculate_metrics(test_data.get("Y"), predict)
     print(res)
 

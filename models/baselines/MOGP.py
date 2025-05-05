@@ -155,7 +155,7 @@ if __name__ == "__main__":
     # Add the parent directory (or any other directory where the config module is located) to the Python path
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../configs')))
 
-    from configs.config import config  # Import the config module
+    from configs.config_butterfly import config  # Import the config module
 
     # ARGUMENTS
     environment = config["additive"]["environment"]
