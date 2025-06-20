@@ -20,6 +20,7 @@ config = {
         "train_pct": 0.8,
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "verbose": True,
+        "save_model_path": "",
     },
     "environmental": {
         "n_latents": 10,
@@ -36,7 +37,7 @@ config = {
     },
     "additive": {  # To specify if certain components should be included or omitted.
         "environment": True,
-        "spatial": False,
+        "spatial": True,
         "traits": False,
     }
 }

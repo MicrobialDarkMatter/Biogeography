@@ -10,7 +10,7 @@ import wandb
 import sys
 import os
 
-from MultitaskVariationalStrategy import MultitaskVariationalStrategy
+from models.MultitaskVariationalStrategy import MultitaskVariationalStrategy
 
 
 class MicroGP(pyro.nn.PyroModule):
@@ -325,7 +325,6 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader, random_split
     from DataSampler import DataSampler
 
-    from misc.save_results import save_results
     from misc.calculate_metrics import calculate_metrics, precision_at_k
 
     from sklearn import metrics
@@ -333,7 +332,7 @@ if __name__ == "__main__":
     # Add the parent directory (or any other directory where the config module is located) to the Python path
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../configs')))
 
-    from configs.config_butterfly import config  # Import the config module
+    from configs.config import config  # Import the config module
 
     # ARGUMENTS
     environment = config["additive"]["environment"]
@@ -357,6 +356,8 @@ if __name__ == "__main__":
     n_inducing_points_spatial = config["spatial"]["n_inducing_points"]
 
     prevalence_threshold = config["data"]["prevalence_threshold"]
+
+    save_model_path = config["general"]["save_model_path"]
     # STOP ARGUMENTS
 
     dataset = DataSampler(
@@ -421,7 +422,7 @@ if __name__ == "__main__":
     optimizer = pyro.optim.Adam({"lr": lr})
     # elbo = pyro.infer.Trace_ELBO(num_particles=n_particles, vectorize_particles=True, retain_graph=True)
 
-    from BetaTraceELBO import BetaTraceELBO
+    from models.BetaTraceELBO import BetaTraceELBO
 
     elbo = BetaTraceELBO(beta=.5, num_particles=n_particles, vectorize_particles=True, retain_graph=True)
 
@@ -439,10 +440,11 @@ if __name__ == "__main__":
         iterator.set_postfix(loss=loss)
 
 
-    # # Save model
-    # torch.save(model, f"../results/saved_models/model.pt")
-    # pyro.get_param_store().save(f"../results/saved_models/param_store.pt")
-    # torch.save(dataset, f"../results/saved_models/dataset.pt")
+    # Save model
+    if save_model_path:
+        torch.save(model, os.path.join(save_model_path, "model.pt"))
+        pyro.get_param_store().save(os.path.join(save_model_path, "param_store.pt"))# f"../results/saved_models/param_store.pt"
+        torch.save(dataset, os.path.join(save_model_path, "dataset.pt"))
 
     test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True)
 
