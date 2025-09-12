@@ -13,6 +13,7 @@ config = {
         "normalize_X": True,
         "prevalence_threshold": 0.0,
         "total_counts_path": os.path.join(base_path, "data/clean/total_counts.csv"),
+        "hierarchy_path": os.path.join(base_path, "data/clean/genome_taxonomy.csv"),
     },
     "general": {
         "n_iter": 200,

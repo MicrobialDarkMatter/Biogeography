@@ -357,6 +357,7 @@ if __name__ == "__main__":
     coords_path = config["data"]["coords_path"]
     traits_path = config["data"]["traits_path"]
     total_counts_path = config["data"]["total_counts_path"]
+    hierarchy_path = config["data"]["hierarchy_path"]
 
     n_latents_env = config["environmental"]["n_latents"]
     n_latents_spatial = config["spatial"]["n_latents"]
@@ -383,7 +384,8 @@ if __name__ == "__main__":
         normalize_X=True,
         prevalence_threshold=prevalence_threshold,
         taxonomy_level="Genus",
-        total_counts_path=total_counts_path
+        total_counts_path=total_counts_path,
+        hierarchy_path=hierarchy_path
     )
 
     if spatial:

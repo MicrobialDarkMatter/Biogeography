@@ -12,7 +12,7 @@ from DirichletMultinomial.misc.distance_matrix import get_distance_matrix  # TOD
 
 
 class DataSampler(Dataset):
-    def __init__(self, Y_path, X_path, coords_path, device, normalize_X: bool, traits_path: str="", prevalence_threshold=0, taxonomy_level="", total_counts_path=""):
+    def __init__(self, Y_path, X_path, coords_path, device, normalize_X: bool, traits_path: str="", prevalence_threshold=0, taxonomy_level="", total_counts_path="", hierarchy_path=""):
         """
         Initializes the DataLoader with tensor data and batch size.
 
@@ -85,8 +85,7 @@ class DataSampler(Dataset):
         self.Y = self.Y / self.Y.sum(dim=1).unsqueeze(1)  # Relative percentage
 
         if self.taxonomy_level:  # Taxonomy aggregation
-            from configs.data_folder_path import data_folder_path
-            taxonomy = pd.read_csv(os.path.join(data_folder_path, "clean/genome_taxonomy.csv"))
+            taxonomy = pd.read_csv(hierarchy_path)
             taxonomy = pd.merge(taxonomy, pd.DataFrame(self.Y_cols_species, columns=["Taxon"]), on="Taxon",
                                 how="inner")
             cols_taxonomy = taxonomy.columns
