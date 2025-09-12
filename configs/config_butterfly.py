@@ -20,7 +20,7 @@ config = {
         "train_pct": 0.8,
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "verbose": True,
-        "save_model_path": "",
+        "save_model_path": "../results/saved_models/",
     },
     "environmental": {
         "n_latents": 10,
