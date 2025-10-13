@@ -89,7 +89,7 @@ if __name__ == "__main__":
         test_dataset = torch.utils.data.Subset(dataset, test_indices)
         validation_dataset = torch.utils.data.Subset(dataset, validation_indices)
     else:
-        train_dataset, test_dataset, validation_indices = random_split(dataset, split_pct,
+        train_dataset, test_dataset, validation_dataset = random_split(dataset, split_pct,
                                                                        generator=torch.Generator().manual_seed(seed))
 
     # # Make sure at least 10 species obserservations are present in each subset of the data
