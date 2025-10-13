@@ -12,6 +12,9 @@ import os
 from EcoGP.likelihoods import DirichletMultinomialLikelihood, BernoulliLikelihood
 
 if __name__ == "__main__":
+    from configs.config_toy import config  # Import the config module
+
+
     from EcoGP.model import EcoGP
     # LOAD DATA
     from torch.utils.data import DataLoader, random_split
@@ -24,8 +27,6 @@ if __name__ == "__main__":
 
     # # Add the parent directory (or any other directory where the config module is located) to the Python path
     # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../configs')))
-
-    from configs.config_toy import config  # Import the config module
 
     # ARGUMENTS
     environment = config["additive"]["environment"]
@@ -50,12 +51,17 @@ if __name__ == "__main__":
     n_inducing_points_env = config["environmental"]["n_inducing_points"]
     n_inducing_points_spatial = config["spatial"]["n_inducing_points"]
 
-    prevalence_threshold = config["data"]["prevalence_threshold"]
+    verbose = config["general"]["verbose"]
+    presence_absence = config["data"]["presence_absence"]
+    normalize_X = config["data"]["normalize_X"]
+    likelihood = config["general"]["likelihood"]
+    seed = config["general"]["seed"]
+
+    # prevalence_threshold = config["data"]["prevalence_threshold"]
 
     save_model_path = config["general"]["save_model_path"]
     # STOP ARGUMENTS
 
-    seed = 0  # TODO: Move to Config
     torch.manual_seed(seed)
 
     data = DataLoad(
@@ -64,10 +70,10 @@ if __name__ == "__main__":
         coords_path=coords_path,
         traits_path=traits_path,
         device=device,
-        normalize_X=True,  # TODO: Move to Config
+        normalize_X=normalize_X,
         total_counts_path=total_counts_path,
-        presence_absence_Y=False,  # TODO: Move to Config
-        verbose=False  # TODO: Move to Config
+        presence_absence_Y=presence_absence,
+        verbose=verbose
     )
 
     dataset = DataSampler(data)
@@ -119,7 +125,7 @@ if __name__ == "__main__":
         environment=environment,
         spatial=spatial,
         traits=traits,
-        likelihood=DirichletMultinomialLikelihood#BernoulliLikelihood#  # TODO: Move to Config
+        likelihood=likelihood
     ).to(device)
 
     optimizer = pyro.optim.Adam({"lr": lr})

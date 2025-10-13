@@ -1,26 +1,31 @@
 import os
 import torch
 
-from configs.data_folder_path import data_folder_path
+from configs.base_path import base_path
+from EcoGP.likelihoods import DirichletMultinomialLikelihood, BernoulliLikelihood
 
 config = {
     "data": {
-        "X_path": os.path.join(data_folder_path, "global/20250623_soil_on_tree_genus_env_no0rows.csv"),
-        "Y_path": os.path.join(data_folder_path, "global/20250623_soil_on_tree_genus_no0rows.csv"),
-        "coords_path": os.path.join(data_folder_path, "global/20250623_soil_on_tree_genus_coords_no0rows.csv"),
+        "X_path": os.path.join(base_path, "data/global/20250623_soil_on_tree_genus_env_no0rows.csv"),
+        "Y_path": os.path.join(base_path, "data/global/20250623_soil_on_tree_genus_no0rows.csv"),
+        "coords_path": os.path.join(base_path, "data/global/20250623_soil_on_tree_genus_coords_no0rows.csv"),
         "traits_path": "",
         "normalize_X": True,
-        "prevalence_threshold": 0.0
+        "prevalence_threshold": 0.0,
+        "total_counts_path": "",
+        "presence_absence": False,
     },
     "general": {
-        "n_iter": 100,
+        "likelihood": DirichletMultinomialLikelihood,
+        "n_iter": 200,
         "n_particles": 1,
-        "lr": 0.01,
-        "batch_size": 512,
-        "split_pct": [0.7, 0.2, 0.1], # Train/Test/Val
+        "lr": 0.0025,
+        "batch_size": 256,
+        "split_pct": [0.7, 0.2, 0.1],  # Train/Test/Val
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "verbose": True,
-        "save_model_path": "",#"../results/saved_models/",
+        "save_model_path": os.path.join(base_path, "results/saved_models/"),
+        "seed": 0,
     },
     "environmental": {
         "n_latents": 10,
