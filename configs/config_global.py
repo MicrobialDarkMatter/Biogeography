@@ -17,7 +17,7 @@ config = {
         "n_particles": 1,
         "lr": 0.01,
         "batch_size": 512,
-        "train_pct": 0.8,
+        "split_pct": [0.7, 0.2, 0.1], # Train/Test/Val
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "verbose": True,
         "save_model_path": "",#"../results/saved_models/",

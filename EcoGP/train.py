@@ -46,7 +46,7 @@ if __name__ == "__main__":
     device = config["general"]["device"]
     lr = config["general"]["lr"]
     batch_size = config["general"]["batch_size"]
-    train_pct = config["general"]["train_pct"]
+    split_pct = config["general"]["split_pct"]
     n_inducing_points_env = config["environmental"]["n_inducing_points"]
     n_inducing_points_spatial = config["spatial"]["n_inducing_points"]
 
@@ -55,7 +55,8 @@ if __name__ == "__main__":
     save_model_path = config["general"]["save_model_path"]
     # STOP ARGUMENTS
 
-    torch.manual_seed(0)
+    seed = 0
+    torch.manual_seed(seed)
 
     data = DataLoad(
         Y_path=y_path,
@@ -71,27 +72,25 @@ if __name__ == "__main__":
 
     dataset = DataSampler(data)
 
-
     if spatial:
-        train_indices, test_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
-                                                   [train_pct, 1 - train_pct],
-                                                   generator=torch.Generator().manual_seed(42))
+        train_indices, test_indices, validation_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
+                                                                       split_pct,
+                                                                       generator=torch.Generator().manual_seed(seed))
 
         # Getting the spatial locations split into separate sets
         train_indices = dataset.coords_inverse_indicies[
             torch.isin(dataset.coords_inverse_indicies, torch.tensor(train_indices.indices))]
         test_indices = dataset.coords_inverse_indicies[
             torch.isin(dataset.coords_inverse_indicies, torch.tensor(test_indices.indices))]
+        validation_indices = dataset.coords_inverse_indicies[
+            torch.isin(dataset.coords_inverse_indicies, torch.tensor(validation_indices.indices))]
 
         train_dataset = torch.utils.data.Subset(dataset, train_indices)
         test_dataset = torch.utils.data.Subset(dataset, test_indices)
+        validation_dataset = torch.utils.data.Subset(dataset, validation_indices)
     else:
-        # dataloader = DataLoader(dataset=dataset, batch_size=_batch_size, shuffle=True)
-        train_size = int(train_pct * len(dataset))
-        test_size = len(dataset) - train_size
-
-        train_dataset, test_dataset = random_split(dataset, [train_size, test_size],
-                                                   generator=torch.Generator().manual_seed(42))
+        train_dataset, test_dataset, validation_indices = random_split(dataset, split_pct,
+                                                                       generator=torch.Generator().manual_seed(seed))
 
     # # Make sure at least 10 species obserservations are present in each subset of the data
     # keep_y = (dataset.Y[train_dataset.indices].sum(dim=0) >= 10) & (
@@ -120,7 +119,7 @@ if __name__ == "__main__":
         environment=environment,
         spatial=spatial,
         traits=traits,
-        likelihood=DirichletMultinomialLikelihood
+        likelihood=DirichletMultinomialLikelihood#BernoulliLikelihood#
     ).to(device)
 
     optimizer = pyro.optim.Adam({"lr": lr})
@@ -152,13 +151,14 @@ if __name__ == "__main__":
     # Save model
     if save_model_path:
         torch.save(model, os.path.join(save_model_path, "model.pt"))
-        pyro.get_param_store().save(os.path.join(save_model_path, "param_store.pt"))# f"../results/saved_models/param_store.pt"
+        pyro.get_param_store().save(
+            os.path.join(save_model_path, "param_store.pt"))  # f"../results/saved_models/param_store.pt"
         torch.save(dataset, os.path.join(save_model_path, "dataset.pt"))
 
+    # Testing
     test_dataloader = DataLoader(dataset=test_dataset,
                                  batch_size=batch_size,
                                  shuffle=True)
-
 
     prob_list = []
     y_test_list = []
@@ -178,38 +178,15 @@ if __name__ == "__main__":
     test_Y = torch.concat(y_test_list)
     del prob_list, y_test_list
 
-    from configs.base_path import base_path
-    torch.save(prob, os.path.join(base_path, "results/DM_predictions.pt"))
-    torch.save(test_Y, os.path.join(base_path, "results/DM_relative_prevalence.pt"))
+    torch.save(prob, os.path.join(save_model_path, "Y_pred.pt"))
+    torch.save(test_Y, os.path.join(save_model_path, "Y_true.pt"))
 
     from DirichletMultinomial.misc.metrics import precision_at_k
+
     print(metrics.mean_absolute_error(test_Y, prob))
     print(precision_at_k(test_Y, prob, k=20).mean())
 
     print("Done")
 
-    # fig, axes = plt.subplots(2, 2, figsize=(10, 8))  # 2x2 subplot grid
-    # axes = axes.flatten()  # make it easier to index
-    #
-    # for i in range(4):  # you only have 3 plots, so 1 slot will be empty
-    #     axes[i].scatter(test_Y[i], y_prob[i])
-    #
-    #     # add y=x line
-    #     min_val = min(test_Y[i].min().item(), y_prob[i].min().item())
-    #     max_val = max(test_Y[i].max().item(), y_prob[i].max().item())
-    #     axes[i].plot([min_val, max_val], [min_val, max_val], "r--", linewidth=1)
-    #
-    #     axes[i].set_xlabel("Actual")
-    #     axes[i].set_ylabel("Predicted")
-    #     axes[i].set_title(f"Plot {i + 1}")
-    #
-    # plt.tight_layout()
-    # plt.show()
-    #
-    # from DirichletMultinomial.misc.metrics import ndcg_at_k, precision_at_k, spearman_corr, rmse
-    #
-    # k = 20
-    # print(f"NDCG@{k}: {ndcg_at_k(test_Y, y_prob, k).mean().item()}")
-    # print(f"Precision@{k}: {precision_at_k(test_Y, y_prob, k).mean().item()}")
-    # print(f"Spearman's Rank Correlation: {spearman_corr(test_Y, y_prob).mean().item()}")
-    # print(f"RMSE: {rmse(test_Y, y_prob).mean().item()}")
+    # Validation
+    ...

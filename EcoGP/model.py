@@ -79,7 +79,7 @@ class EcoGP(pyro.nn.PyroModule):
             with pyro.plate("J_plate", size=n_species, dim=-1):
                 w = pyro.sample("w", dist.Normal(loc=w_loc, scale=torch.ones_like(w_loc)).to_event(1))
 
-            z = z + f_samples @ w.squeeze().T
+            z = z + f_samples @ w.squeeze().reshape(n_species, self.n_latents_env).T
 
         if self.spatial:
             g_dist = self.g.pyro_model(batch.get("coords"), name_prefix="g_GP")
