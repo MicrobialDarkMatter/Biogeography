@@ -22,6 +22,7 @@ class DataLoad(Dataset):
         self.device = device
         self.using_coordinates = True if coords_path else False
         self.using_traits = True if traits_path else False
+        self.using_total_counts = True if total_counts_path else False
 
         self.verbose = verbose
 

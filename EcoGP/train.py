@@ -55,7 +55,7 @@ if __name__ == "__main__":
     save_model_path = config["general"]["save_model_path"]
     # STOP ARGUMENTS
 
-    seed = 0
+    seed = 0  # TODO: Move to Config
     torch.manual_seed(seed)
 
     data = DataLoad(
@@ -64,10 +64,10 @@ if __name__ == "__main__":
         coords_path=coords_path,
         traits_path=traits_path,
         device=device,
-        normalize_X=True,
+        normalize_X=True,  # TODO: Move to Config
         total_counts_path=total_counts_path,
-        presence_absence_Y=False,
-        verbose=False
+        presence_absence_Y=False,  # TODO: Move to Config
+        verbose=False  # TODO: Move to Config
     )
 
     dataset = DataSampler(data)
@@ -119,13 +119,13 @@ if __name__ == "__main__":
         environment=environment,
         spatial=spatial,
         traits=traits,
-        likelihood=DirichletMultinomialLikelihood#BernoulliLikelihood#
+        likelihood=DirichletMultinomialLikelihood#BernoulliLikelihood#  # TODO: Move to Config
     ).to(device)
 
     optimizer = pyro.optim.Adam({"lr": lr})
     # elbo = pyro.infer.Trace_ELBO(num_particles=n_particles, vectorize_particles=True, retain_graph=True)
 
-    from DirichletMultinomial.BetaTraceELBO import BetaTraceELBO
+    from EcoGP.BetaTraceELBO import BetaTraceELBO
 
     elbo = BetaTraceELBO(beta=.5, num_particles=n_particles, vectorize_particles=True, retain_graph=True)
 
@@ -172,16 +172,16 @@ if __name__ == "__main__":
         y = predictive(batch)["y"].mean(dim=0).squeeze()
 
         prob_list.append(y)
-        y_test_list.append(batch.get("Y") / dataset.total_counts[idx])
+        y_test_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
 
     prob = torch.concat(prob_list)
     test_Y = torch.concat(y_test_list)
     del prob_list, y_test_list
 
-    torch.save(prob, os.path.join(save_model_path, "Y_pred.pt"))
-    torch.save(test_Y, os.path.join(save_model_path, "Y_true.pt"))
+    torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
+    torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
 
-    from DirichletMultinomial.misc.metrics import precision_at_k
+    from EcoGP.misc.metrics import precision_at_k
 
     print(metrics.mean_absolute_error(test_Y, prob))
     print(precision_at_k(test_Y, prob, k=20).mean())
@@ -189,4 +189,27 @@ if __name__ == "__main__":
     print("Done")
 
     # Validation
-    ...
+    validation_dataloader = DataLoader(dataset=validation_dataset,
+                                 batch_size=batch_size,
+                                 shuffle=True)
+
+    prob_list = []
+    y_validation_list = []
+    for idx in validation_dataloader:
+        batch = validation_dataset.dataset.get_batch_data(idx)
+        batch["training"] = False
+        batch["do_spatial"] = False
+
+        predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=25)
+
+        y = predictive(batch)["y"].mean(dim=0).squeeze()
+
+        prob_list.append(y)
+        y_validation_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
+
+    prob = torch.concat(prob_list)
+    validation_Y = torch.concat(y_validation_list)
+    del prob_list, y_validation_list
+
+    torch.save(prob, os.path.join(save_model_path, "Y_pred_validation.pt"))
+    torch.save(validation_Y, os.path.join(save_model_path, "Y_true_validation.pt"))
