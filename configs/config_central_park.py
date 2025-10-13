@@ -13,7 +13,7 @@ config = {
         "normalize_X": True,
         "prevalence_threshold": 0.0,
         "total_counts_path": "",
-        "presence_absence": False,
+        "presence_absence": True,
     },
     "general": {
         "likelihood": DirichletMultinomialLikelihood,

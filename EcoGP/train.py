@@ -9,21 +9,34 @@ import wandb
 import sys
 import os
 
-from EcoGP.likelihoods import DirichletMultinomialLikelihood, BernoulliLikelihood
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from EcoGP.model import EcoGP
+
+from torch.utils.data import DataLoader, random_split
+from EcoGP.DataSampler import DataSampler
+from EcoGP.DataLoad import DataLoad
+from EcoGP.BetaTraceELBO import BetaTraceELBO
+
+from sklearn import metrics
+
+from EcoGP.misc.metrics import precision_at_k
 
 if __name__ == "__main__":
-    from configs.config_toy import config  # Import the config module
+    import importlib
+    import argparse
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config_toy",  # TODO: Change config here or when running in terminal
+        help="Name of the config file (without .py extension, must be in configs/)",
+    )
+    args = parser.parse_args()
 
-    from EcoGP.model import EcoGP
-    # LOAD DATA
-    from torch.utils.data import DataLoader, random_split
-    from EcoGP.DataSampler import DataSampler
-    from EcoGP.DataLoad import DataLoad
-
-    from EcoGP.misc.calculate_metrics import calculate_metrics, precision_at_k
-
-    from sklearn import metrics
+    config_module = importlib.import_module(f"configs.{args.config}")
+    config = config_module.config  # Import the config module
 
     # # Add the parent directory (or any other directory where the config module is located) to the Python path
     # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../configs')))
@@ -131,8 +144,6 @@ if __name__ == "__main__":
     optimizer = pyro.optim.Adam({"lr": lr})
     # elbo = pyro.infer.Trace_ELBO(num_particles=n_particles, vectorize_particles=True, retain_graph=True)
 
-    from EcoGP.BetaTraceELBO import BetaTraceELBO
-
     elbo = BetaTraceELBO(beta=.5, num_particles=n_particles, vectorize_particles=True, retain_graph=True)
 
     svi = pyro.infer.SVI(model.model, model.guide, optimizer, elbo)
@@ -187,12 +198,8 @@ if __name__ == "__main__":
     torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
     torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
 
-    from EcoGP.misc.metrics import precision_at_k
-
     print(metrics.mean_absolute_error(test_Y, prob))
     print(precision_at_k(test_Y, prob, k=20).mean())
-
-    print("Done")
 
     # Validation
     validation_dataloader = DataLoader(dataset=validation_dataset,
@@ -219,3 +226,5 @@ if __name__ == "__main__":
 
     torch.save(prob, os.path.join(save_model_path, "Y_pred_validation.pt"))
     torch.save(validation_Y, os.path.join(save_model_path, "Y_true_validation.pt"))
+
+    print("Done")

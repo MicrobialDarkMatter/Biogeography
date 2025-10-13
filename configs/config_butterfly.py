@@ -13,7 +13,7 @@ config = {
         "normalize_X": True,
         "prevalence_threshold": 0.0,
         "total_counts_path": "",
-        "presence_absence": False,
+        "presence_absence": True,
     },
     "general": {
         "likelihood": DirichletMultinomialLikelihood,
@@ -42,7 +42,7 @@ config = {
     },
     "additive": {  # To specify if certain components should be included or omitted.
         "environment": True,
-        "spatial": False,
+        "spatial": True,
         "traits": False,
     }
 }

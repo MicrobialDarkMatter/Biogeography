@@ -54,6 +54,7 @@ class DataLoad(Dataset):
         self.validate_Y()
         self.transform_X()
         self.transform_Y(total_counts_path)
+        self.unique_coordinates()
 
         self.n_species = self.Y.shape[1]
         self.n_env = self.X.shape[1]
