@@ -6,10 +6,8 @@ import pandas as pd
 import polars as pl
 import numpy as np
 
-from torch.utils.data import Dataset
 
-
-class DataLoad(Dataset):
+class DataLoad():
     def __init__(self, Y_path, X_path, coords_path, device, normalize_X: bool, traits_path: str="", total_counts_path="", presence_absence_Y=False, verbose=False):
         """
         Initializes the DataLoader with tensor data and batch size.

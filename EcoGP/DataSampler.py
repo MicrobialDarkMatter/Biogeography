@@ -69,23 +69,6 @@ class DataSampler(Dataset):
         else:
             return self.Y[idx].to(self.device)
 
-    # def get_X_dist(self, idx=None):
-    #     """
-    #
-    #     :param idx: Be the unique idx from get_dis_idx_reverse
-    #     :return:
-    #     """
-    #     if idx is None:
-    #         return self.X_dist_matrix
-    #     else:
-    #         return self.X_dist_matrix[idx][:, idx].to(self.device)
-
-    # def get_Y_mean_std(self):
-    #     return self.Y_mean, self.Y_std
-    #
-    # def get_Y_idx_cols(self):
-    #     return self.Y_idx_sites, self.Y_cols_species
-
 
 if __name__ == "__main__":
     from DataLoad import DataLoad

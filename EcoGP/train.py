@@ -33,13 +33,33 @@ if __name__ == "__main__":
         default="config_toy",  # TODO: Change config here or when running in terminal
         help="Name of the config file (without .py extension, must be in configs/)",
     )
+
+    # To override arguments from config
+    parser.add_argument('--n_latents_env', type=int)
+    parser.add_argument('--n_inducing_points_env', type=int)
+    parser.add_argument('--n_latents_spatial', type=int)
+    parser.add_argument('--n_inducing_points_spatial', type=int)
+    parser.add_argument('--save_model_path', type=str)
+    parser.add_argument('--seed', type=int)
+
     args = parser.parse_args()
 
     config_module = importlib.import_module(f"configs.{args.config}")
     config = config_module.config  # Import the config module
 
-    # # Add the parent directory (or any other directory where the config module is located) to the Python path
-    # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../configs')))
+    # Overrides config
+    if args.n_latents_env:
+        config["environmental"]["n_latents"] = args.n_latents_env
+    if args.n_inducing_points_env:
+        config["environmental"]["n_inducing_points"] = args.n_inducing_points_env
+    if args.n_latents_spatial:
+        config["spatial"]["n_latents"] = args.n_latents_spatial
+    if args.n_inducing_points_spatial:
+        config["spatial"]["n_inducing_points"] = args.n_inducing_points_spatial
+    if args.save_model_path:
+        config["general"]["save_model_path"] = args.save_model_path
+    if args.seed is not None:
+        config["general"]["seed"] = args.seed
 
     # ARGUMENTS
     environment = config["additive"]["environment"]
@@ -168,14 +188,21 @@ if __name__ == "__main__":
     # Save model
     if save_model_path:
         torch.save(model, os.path.join(save_model_path, "model.pt"))
-        pyro.get_param_store().save(
-            os.path.join(save_model_path, "param_store.pt"))  # f"../results/saved_models/param_store.pt"
-        torch.save(dataset, os.path.join(save_model_path, "dataset.pt"))
+        pyro.get_param_store().save(os.path.join(save_model_path, "param_store.pt"))
+        # torch.save(dataset, os.path.join(save_model_path, "dataset.pt"))
 
-    # Testing
-    test_dataloader = DataLoader(dataset=test_dataset,
-                                 batch_size=batch_size,
-                                 shuffle=True)
+        # Save config
+        import pprint
+
+        with open(os.path.join(save_model_path, 'config.txt'), 'w') as f:
+            # Create a PrettyPrinter object that writes to the file
+            pp = pprint.PrettyPrinter(stream=f)
+            pp.pprint(config)
+
+        # Testing
+        test_dataloader = DataLoader(dataset=test_dataset,
+                                     batch_size=batch_size,
+                                     shuffle=True)
 
     prob_list = []
     y_test_list = []
