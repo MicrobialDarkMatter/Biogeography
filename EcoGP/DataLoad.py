@@ -138,7 +138,7 @@ class DataLoad():
     def transform_Y(self, total_counts_path):
         if self.presence_absence_Y:
             self.Y = self.Y.bool().float()
-        if total_counts_path:
+        elif total_counts_path:
             self.total_counts = torch.tensor(pd.read_csv(total_counts_path, index_col=0).values)
             self.Y = (self.Y * self.total_counts).round().int()
 
