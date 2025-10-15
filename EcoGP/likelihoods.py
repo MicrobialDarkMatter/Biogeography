@@ -2,16 +2,18 @@ import torch
 import pyro
 import pyro.distributions as dist
 
+from EcoGP.DirichletMultinomial import DirichletMultinomial
+
 
 def DirichletMultinomialLikelihood(z, batch, samples_plate, species_plate):
-    z = torch.nn.functional.softplus(z) + 1e-16
+    z = torch.nn.functional.softplus(z) + 1e-6
 
     pyro.deterministic("z", z)
 
     if batch.get("training", True):
         with samples_plate:
             # IMPORTANT: no species_plate here; species is the Dirichlet EVENT dim
-            pyro.sample("y", dist.DirichletMultinomial(concentration=z, total_count=batch.get("Y").sum(dim=1)),
+            pyro.sample("y", DirichletMultinomial(concentration=z, total_count=batch.get("Y").sum(dim=1), is_sparse=True),
                         obs=batch.get("Y"))
     else:
         # No plate for predictive !!!

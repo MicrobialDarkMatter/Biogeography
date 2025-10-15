@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="config_toy",  # TODO: Change config here or when running in terminal
+        default="config",  # TODO: Change config here or when running in terminal
         help="Name of the config file (without .py extension, must be in configs/)",
     )
 
@@ -131,14 +131,18 @@ if __name__ == "__main__":
         train_dataset, test_dataset, validation_dataset = random_split(dataset, split_pct,
                                                                        generator=torch.Generator().manual_seed(seed))
 
-    # # Make sure at least 10 species obserservations are present in each subset of the data
-    # keep_y = (dataset.Y[train_dataset.indices].sum(dim=0) >= 10) & (
-    #             dataset.Y[test_dataset.indices].sum(dim=0) >= 10)
-    # dataset.Y = dataset.Y[:, keep_y]
-    # dataset.Y_cols_species = dataset.Y_cols_species[keep_y]
-    # dataset.n_species = dataset.Y.shape[1]
-    # if traits_path:
-    #     dataset.traits = dataset.traits[keep_y, :]
+    # Make sure at least 1 species obserservations are present all splits
+    # Can't make predictions for a species not present in training
+    keep_y = (dataset.Y[train_dataset.indices].sum(dim=0) >= split_pct[0] * 10) & (
+                dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
+                dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
+    dataset.Y = dataset.Y[:, keep_y]
+    dataset.taxon_names = dataset.taxon_names[keep_y]
+    dataset.n_species = dataset.Y.shape[1]
+    if traits_path:
+        dataset.traits = dataset.traits[keep_y, :]
+    if verbose:
+        print(f"Keeping {keep_y.sum().item()} taxons after at least one observation in each split")
 
     train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
 
