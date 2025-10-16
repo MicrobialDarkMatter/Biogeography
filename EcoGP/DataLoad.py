@@ -139,6 +139,9 @@ class DataLoad():
         if self.presence_absence_Y:
             self.Y = self.Y.bool().float()
         elif total_counts_path:
+            # Make sure sum(Y_i)=1
+            self.Y / self.Y.sum(dim=1, keepdim=True)
+
             self.total_counts = torch.tensor(pd.read_csv(total_counts_path, index_col=0).values)
             self.Y = (self.Y * self.total_counts).round().int()
 
