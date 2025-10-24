@@ -12,6 +12,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from EcoGP.model import EcoGP
+# from EcoGP.model_old import MicroGP as EcoGP; print("USING OLD MODEL!")
+# from EcoGP.model_flip import EcoGP; print("USING FLIPPED")
 
 from torch.utils.data import DataLoader, random_split
 from EcoGP.DataSampler import DataSampler
@@ -30,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="config",  # TODO: Change config here or when running in terminal
+        default="config_clean_unique",  # TODO: Change config here or when running in terminal
         help="Name of the config file (without .py extension, must be in configs/)",
     )
 
@@ -43,6 +45,8 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int)
 
     args = parser.parse_args()
+
+    print(f"Config File: {args.config}")
 
     config_module = importlib.import_module(f"configs.{args.config}")
     config = config_module.config  # Import the config module
@@ -142,7 +146,8 @@ if __name__ == "__main__":
     if traits_path:
         dataset.traits = dataset.traits[keep_y, :]
     if verbose:
-        print(f"Keeping {keep_y.sum().item()} taxons after at least one observation in each split")
+        print(f"Keeping {keep_y.sum().item()} taxons with at least {split_pct} * 10 "
+              f"observations per split, respectively.")
 
     train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
 
@@ -212,14 +217,9 @@ if __name__ == "__main__":
     y_test_list = []
     for idx in test_dataloader:
         batch = test_dataset.dataset.get_batch_data(idx)
-        batch["training"] = False
-        batch["do_spatial"] = False
+        res = model.forward(batch).detach()
 
-        predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=25)
-
-        y = predictive(batch)["y"].mean(dim=0).squeeze()
-
-        prob_list.append(y)
+        prob_list.append(res)
         y_test_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
 
     prob = torch.concat(prob_list)
@@ -229,9 +229,6 @@ if __name__ == "__main__":
     torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
     torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
 
-    print(metrics.mean_absolute_error(test_Y, prob))
-    print(precision_at_k(test_Y, prob, k=20).mean())
-
     # Validation
     validation_dataloader = DataLoader(dataset=validation_dataset,
                                  batch_size=batch_size,
@@ -240,15 +237,10 @@ if __name__ == "__main__":
     prob_list = []
     y_validation_list = []
     for idx in validation_dataloader:
-        batch = validation_dataset.dataset.get_batch_data(idx)
-        batch["training"] = False
-        batch["do_spatial"] = False
+        batch = test_dataset.dataset.get_batch_data(idx)
+        res = model.forward(batch).detach()
 
-        predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=25)
-
-        y = predictive(batch)["y"].mean(dim=0).squeeze()
-
-        prob_list.append(y)
+        prob_list.append(res)
         y_validation_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
 
     prob = torch.concat(prob_list)
@@ -257,5 +249,66 @@ if __name__ == "__main__":
 
     torch.save(prob, os.path.join(save_model_path, "Y_pred_validation.pt"))
     torch.save(validation_Y, os.path.join(save_model_path, "Y_true_validation.pt"))
+
+    # from EcoGP.misc.calculate_metrics import calculate_metrics
+    #
+    # metrics = calculate_metrics(test_Y, prob)
+    # print(metrics)
+
+
+    # prob_list = []
+    # y_test_list = []
+    # for idx in test_dataloader:
+    #     batch = test_dataset.dataset.get_batch_data(idx)
+    #     batch["training"] = False
+    #     batch["do_spatial"] = False
+    #
+    #     predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=1000)
+    #
+    #     y = predictive(batch)["y"].mean(dim=0).squeeze()
+    #
+    #     prob_list.append(y)
+    #     y_test_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
+    #
+    # prob = torch.concat(prob_list)
+    # test_Y = torch.concat(y_test_list)
+    # del prob_list, y_test_list
+    #
+    # torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
+    # torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
+    #
+    # # print(metrics.mean_absolute_error(test_Y, prob))
+    # # print(precision_at_k(test_Y, prob, k=20).mean())
+    #
+    # from EcoGP.misc.calculate_metrics import calculate_metrics
+    #
+    # metrics = calculate_metrics(test_Y, prob)
+    # print(metrics)
+    #
+    # # Validation
+    # validation_dataloader = DataLoader(dataset=validation_dataset,
+    #                              batch_size=batch_size,
+    #                              shuffle=True)
+    #
+    # prob_list = []
+    # y_validation_list = []
+    # for idx in validation_dataloader:
+    #     batch = validation_dataset.dataset.get_batch_data(idx)
+    #     batch["training"] = False
+    #     batch["do_spatial"] = False
+    #
+    #     predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=50)
+    #
+    #     y = predictive(batch)["y"].mean(dim=0).squeeze()
+    #
+    #     prob_list.append(y)
+    #     y_validation_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
+    #
+    # prob = torch.concat(prob_list)
+    # validation_Y = torch.concat(y_validation_list)
+    # del prob_list, y_validation_list
+    #
+    # torch.save(prob, os.path.join(save_model_path, "Y_pred_validation.pt"))
+    # torch.save(validation_Y, os.path.join(save_model_path, "Y_true_validation.pt"))
 
     print("Done")

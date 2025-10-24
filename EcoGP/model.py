@@ -97,10 +97,14 @@ class EcoGP(pyro.nn.PyroModule):
                 # Sample from latent function distribution
                 g_samples = pyro.sample(".g(coords)", g_dist)
 
+                n_samples
             g_samples = g_samples if g_samples.shape == torch.Size(
-                [batch["n_locs_batch"], self.n_latents_spatial]) else g_samples.mean(dim=0).reshape(
-                batch["n_locs_batch"], self.n_latents_spatial)
-            g_samples = g_samples[batch["batch_inverse"]]
+                [n_samples, self.n_latents_spatial]) else g_samples.mean(dim=0).reshape(
+                n_samples, self.n_latents_spatial)
+            # g_samples = g_samples if g_samples.shape == torch.Size(
+            #     [batch["n_locs_batch"], self.n_latents_spatial]) else g_samples.mean(dim=0).reshape(
+            #     batch["n_locs_batch"], self.n_latents_spatial)
+            # g_samples = g_samples[batch["batch_inverse"]]
 
             # v = pyro.param("v", torch.randn(self.n_latents_spatial, n_species))
             v_loc = torch.zeros(self.n_latents_spatial, n_species)
@@ -193,8 +197,31 @@ class EcoGP(pyro.nn.PyroModule):
         with species_plate:
             bias = pyro.sample("b", dist.Normal(loc=bias_loc, scale=bias_scale))
 
-    def forward(self, x):
-        ...
+    def forward(self, batch):
+        # Point prediction
+        z = 0
+
+        if self.environment:
+            f_samples = self.f.pyro_guide(batch.get("X"), name_prefix="f_GP").mean
+            w = pyro.param("w_loc")
+
+            z = z + f_samples @ w
+
+        if self.spatial:
+            g_samples = self.g.pyro_guide(batch.get("coords"), name_prefix="g_GP").mean
+            v = pyro.param("v_loc")
+
+            z = z + g_samples @ v
+
+        bias = pyro.param("bias_loc")
+
+        z = z + bias
+
+        if isinstance(self.likelihood, type(BernoulliLikelihood)):
+            return dist.Bernoulli(logits=z).mean
+
+        if isinstance(self.likelihood, type(DirichletMultinomialLikelihood)):
+            return dist.Dirichlet(concentration=z).mean
 
 
 class EnvironmentGP(gpytorch.models.ApproximateGP):
@@ -288,7 +315,7 @@ class SpatialGP(gpytorch.models.ApproximateGP):
 
         variational_strategy = MultitaskVariationalStrategy(  # CustomVariationalStrategy
             base_variational_strategy=gpytorch.variational.VariationalStrategy(
-                self, inducing_points, variational_distribution, learn_inducing_locations=True
+                self, inducing_points, variational_distribution, learn_inducing_locations=False
             ),
         )
 

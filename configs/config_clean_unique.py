@@ -13,11 +13,11 @@ config = {
         "traits_path": "",#os.path.join(base_path, "data/clean/traits.csv"),
         "normalize_X": True,
         "prevalence_threshold": 0.0,
-        "total_counts_path": "",#os.path.join(base_path, "data/clean/total_counts.csv"),
-        "presence_absence": True,
+        "total_counts_path": os.path.join(base_path, "data/clean_unique/total_counts.csv"),
+        "presence_absence": False,
     },
     "general": {
-        "likelihood": BernoulliLikelihood,  # TODO: Overwritten for testing
+        "likelihood": DirichletMultinomialLikelihood,  # TODO: Overwritten for testing
         "n_iter": 200,  # TODO: Overwritten for testing
         "n_particles": 1,
         "lr": 0.01,  # TODO: Overwritten for testing

@@ -28,17 +28,22 @@ class DataSampler(Dataset):
             "X": self.get_X(idx).to(self.device),
             "Y": self.get_Y(idx).to(self.device),
         }
+        # if self.using_coordinates:
+        #     unique_locs_idx, reverse = self.get_dist_idx_reverse(idx)
+        #     # Data
+        #     batch.update({
+        #         "coords": self.coords[unique_locs_idx].to(self.device)
+        #     })
+        #     # Metadata
+        #     batch.update({
+        #         "n_locs_batch": batch.get("coords").shape[0],
+        #         "unique_batch_locs": unique_locs_idx,
+        #         "batch_inverse": reverse,
+        #     })
         if self.using_coordinates:
-            unique_locs_idx, reverse = self.get_dist_idx_reverse(idx)
             # Data
             batch.update({
-                "coords": self.coords[unique_locs_idx].to(self.device)
-            })
-            # Metadata
-            batch.update({
-                "n_locs_batch": batch.get("coords").shape[0],
-                "unique_batch_locs": unique_locs_idx,
-                "batch_inverse": reverse,
+                "coords": self.coords[idx].to(self.device)
             })
 
         if self.using_traits:
