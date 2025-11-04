@@ -76,7 +76,7 @@ def calculate_pr_auc(y_true, y_pred, eps=1e-8):
     return pr_auc.mean().item()
 
 
-def calculate_nll(y_true, y_pred, eps=1e-8):
+def calculate_nll(y_true, y_pred, eps=1e-4):
     """
     Compute mean binary negative log-likelihood (NLL) per column.
 
@@ -91,11 +91,8 @@ def calculate_nll(y_true, y_pred, eps=1e-8):
     y_true = y_true.float()
     y_pred = torch.clamp(y_pred, eps, 1 - eps)
 
-    nll = -torch.mean(
-        y_true * torch.log(y_pred) + (1 - y_true) * torch.log(1 - y_pred),
-        dim=0
-    )
-    return nll.mean().item()
+    nll = -torch.mean(y_true * torch.log(y_pred) + (1 - y_true) * torch.log(1 - y_pred))
+    return nll.item()
 
 
 def calculate_mae(y_true, y_pred):

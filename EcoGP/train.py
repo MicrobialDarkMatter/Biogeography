@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from EcoGP.model import EcoGP
 # from EcoGP.model_old import MicroGP as EcoGP; print("USING OLD MODEL!")
 # from EcoGP.model_flip import EcoGP; print("USING FLIPPED")
+# from EcoGP.model_traits import EcoGP; print("USING TRAITS")
 
 from torch.utils.data import DataLoader, random_split
 from EcoGP.DataSampler import DataSampler
@@ -32,7 +33,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="config_clean_unique",  # TODO: Change config here or when running in terminal
+        default="config",  # TODO: Change config here or when running in terminal
         help="Name of the config file (without .py extension, must be in configs/)",
     )
 
@@ -141,6 +142,7 @@ if __name__ == "__main__":
                 dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
                 dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
     dataset.Y = dataset.Y[:, keep_y]
+    dataset.total_counts = ((dataset.Y / dataset.total_counts).sum(dim=1) * dataset.total_counts.squeeze()).int().reshape(-1, 1)
     dataset.taxon_names = dataset.taxon_names[keep_y]
     dataset.n_species = dataset.Y.shape[1]
     if traits_path:
@@ -229,6 +231,11 @@ if __name__ == "__main__":
     torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
     torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
 
+    from EcoGP.misc.calculate_metrics_fast import calculate_metrics
+
+    metrics = calculate_metrics(test_Y, prob)
+    print(metrics)
+
     # Validation
     validation_dataloader = DataLoader(dataset=validation_dataset,
                                  batch_size=batch_size,
@@ -249,11 +256,6 @@ if __name__ == "__main__":
 
     torch.save(prob, os.path.join(save_model_path, "Y_pred_validation.pt"))
     torch.save(validation_Y, os.path.join(save_model_path, "Y_true_validation.pt"))
-
-    # from EcoGP.misc.calculate_metrics import calculate_metrics
-    #
-    # metrics = calculate_metrics(test_Y, prob)
-    # print(metrics)
 
 
     # prob_list = []
