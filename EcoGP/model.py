@@ -74,7 +74,7 @@ class EcoGP(pyro.nn.PyroModule):
             #     gamma = pyro.param("gamma", torch.zeros(self.n_latents_env, n_traits))
             #     w_loc = batch.get("traits") @ gamma.T
             # else:
-            #     w_loc = torch.zeros(n_species, self.n_latents_env)
+            # w_loc = torch.zeros(n_species, self.n_latents_env)
             #
             # with species_plate:
             #     w = pyro.sample("w", dist.Normal(loc=w_loc, scale=torch.ones_like(w_loc)).to_event(1))
@@ -97,7 +97,6 @@ class EcoGP(pyro.nn.PyroModule):
                 # Sample from latent function distribution
                 g_samples = pyro.sample(".g(coords)", g_dist)
 
-                n_samples
             g_samples = g_samples if g_samples.shape == torch.Size(
                 [n_samples, self.n_latents_spatial]) else g_samples.mean(dim=0).reshape(
                 n_samples, self.n_latents_spatial)
@@ -192,7 +191,7 @@ class EcoGP(pyro.nn.PyroModule):
         #         bias = pyro.sample("b", dist.Normal(loc=bias_loc, scale=bias_scale))
 
         bias_loc = pyro.param("bias_loc", torch.zeros(n_species))
-        bias_scale = pyro.param("bias_scale", torch.ones(n_species), constraint=dist.constraints.positive)
+        bias_scale = pyro.param("bias_scale", torch.ones(n_species) * 0.1, constraint=dist.constraints.positive)
 
         with species_plate:
             bias = pyro.sample("b", dist.Normal(loc=bias_loc, scale=bias_scale))
@@ -245,11 +244,24 @@ class EnvironmentGP(gpytorch.models.ApproximateGP):
         super().__init__(variational_strategy)
 
         # The mean and covariance modules should be marked as batch, so we learn a different set of hyperparameters
+        # self.mean_module = gpytorch.means.ZeroMean(batch_shape=torch.Size([n_latents]))
+        # # self.mean_module = gpytorch.means.ConstantMean(prior=gpytorch.priors.NormalPrior(loc=-3.0, scale=1.0), batch_shape=torch.Size([n_latents]))
+        # self.covar_module = gpytorch.kernels.RBFKernel(
+        #     lengthscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=5),
+        #     batch_shape=torch.Size([n_latents]),
+        #     ard_num_dims=n_variables,
+        # )
+
         self.mean_module = gpytorch.means.ZeroMean(batch_shape=torch.Size([n_latents]))
-        self.covar_module = gpytorch.kernels.RBFKernel(
-            lengthscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=5),
-            batch_shape=torch.Size([n_latents]),
-            ard_num_dims=n_variables,
+        # self.mean_module = gpytorch.means.LinearMean(input_size=n_variables, batch_shape=torch.Size([n_latents]))
+        self.covar_module = gpytorch.kernels.ScaleKernel(
+            gpytorch.kernels.RBFKernel(
+                lengthscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=5),
+                batch_shape=torch.Size([n_latents]),
+                ard_num_dims=n_variables,
+            ),
+            outputscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=2),
+            batch_shape=torch.Size([n_latents])
         )
 
         # self.covar_module.base_kernel.lengthscale = torch.rand(n_latents, 1, n_variables)
@@ -315,7 +327,7 @@ class SpatialGP(gpytorch.models.ApproximateGP):
 
         variational_strategy = MultitaskVariationalStrategy(  # CustomVariationalStrategy
             base_variational_strategy=gpytorch.variational.VariationalStrategy(
-                self, inducing_points, variational_distribution, learn_inducing_locations=False
+                self, inducing_points, variational_distribution, learn_inducing_locations=True
             ),
         )
 
@@ -323,10 +335,13 @@ class SpatialGP(gpytorch.models.ApproximateGP):
 
         # The mean and covariance modules should be marked as batch, so we learn a different set of hyperparameters
         self.mean_module = gpytorch.means.ZeroMean(batch_shape=torch.Size([n_latents]))
-        self.covar_module = gpytorch.kernels.RBFKernel(
-            # HaversineRBFKernel(  # gpytorch.kernels.RBFKernel(#HaversineRBFKernel(  # CustomSpatialKernel(#
-            lengthscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=5),
-            batch_shape=torch.Size([n_latents]),
+        self.covar_module = gpytorch.kernels.ScaleKernel(
+            gpytorch.kernels.RBFKernel(
+                lengthscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=5),
+                batch_shape=torch.Size([n_latents]),
+            ),
+            outputscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=2),
+            batch_shape=torch.Size([n_latents])
         )
         # self.covar_module.base_kernel.lengthscale = torch.rand(n_latents, 1, 1) * 5
         # self.covar_module.base_kernel.lengthscale = torch.ones(n_latents, 1, 1, requires_grad=False) * 3

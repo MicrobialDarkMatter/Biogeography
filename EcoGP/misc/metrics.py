@@ -1,6 +1,17 @@
 import torch
 
 
+def calculate_metrics_relative(y_true, y_pred, k):
+    res = {
+        "Precision": precision_at_k(y_true, y_pred, k),
+        "NDCG": ndcg_at_k(y_true, y_pred, k),
+        "CORR": spearman_corr(y_true, y_pred),
+        "RMSE": rmse(y_true, y_pred),
+    }
+
+    return res
+
+
 def ndcg_at_k(y_true: torch.Tensor, y_score: torch.Tensor, k: int) -> torch.Tensor:
     """
     Compute NDCG@k for predictions.
@@ -33,26 +44,33 @@ def ndcg_at_k(y_true: torch.Tensor, y_score: torch.Tensor, k: int) -> torch.Tens
     return ndcg
 
 
-def precision_at_k(y_true: torch.Tensor, y_score: torch.Tensor, k: int) -> torch.Tensor:
+def precision_at_k(y_true, y_pred, k=5):
     """
-    Compute Precision@k for predictions.
+    Compute Precision@k for each row of (y_true, y_pred) tensors.
+    Works fully in PyTorch, supports GPU.
 
     Args:
-        y_true: relevance labels (batch_size, n_items) [0/1 or graded relevance]
-        y_score: predicted scores (batch_size, n_items)
-        k: cutoff
+        y_true (torch.Tensor): Binary ground truth, shape (n_samples, n_labels)
+        y_pred (torch.Tensor): Prediction scores, shape (n_samples, n_labels)
+        k (int): The number of top elements to consider
 
     Returns:
-        precision: tensor of shape (batch_size,)
+        torch.Tensor: scalar tensor with mean Precision@k across rows
     """
-    # top-k indices by predicted score
-    indices_score = torch.topk(y_score, k, dim=1)[1]
-    indices_true = torch.topk(y_true, k, dim=1)[1]
+    y_true = y_true.bool().float()
+    y_pred = y_pred.float()
 
-    counts = torch.tensor(
-        [len(set(a).intersection(set(b))) for a, b in zip(indices_score.tolist(), indices_true.tolist())])
-    precision = counts / k
-    return precision
+    # Get indices of top-k predictions per row
+    topk_idx = torch.topk(y_pred, k, dim=1).indices
+
+    # Gather corresponding true labels
+    topk_true = torch.gather(y_true, 1, topk_idx)
+
+    # Compute precision per row: number of true positives in top-k / k
+    precision_per_row = topk_true.sum(dim=1) / k
+
+    # Return mean precision@k (ignores NaNs if any row has no positives)
+    return precision_per_row.nanmean()
 
 
 def spearman_corr(x, y, dim=1):
