@@ -23,8 +23,6 @@ from EcoGP.BetaTraceELBO import BetaTraceELBO
 
 from sklearn import metrics
 
-from EcoGP.misc.metrics import precision_at_k
-
 if __name__ == "__main__":
     import importlib
     import argparse
@@ -33,7 +31,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="config",  # TODO: Change config here or when running in terminal
+        default="config_clean_unique",  # TODO: Change config here or when running in terminal
         help="Name of the config file (without .py extension, must be in configs/)",
     )
 
@@ -142,7 +140,8 @@ if __name__ == "__main__":
                 dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
                 dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
     dataset.Y = dataset.Y[:, keep_y]
-    dataset.total_counts = ((dataset.Y / dataset.total_counts).sum(dim=1) * dataset.total_counts.squeeze()).int().reshape(-1, 1)
+    if dataset.using_total_counts:
+        dataset.total_counts = ((dataset.Y / dataset.total_counts).sum(dim=1) * dataset.total_counts.squeeze()).int().reshape(-1, 1)
     dataset.taxon_names = dataset.taxon_names[keep_y]
     dataset.n_species = dataset.Y.shape[1]
     if traits_path:
