@@ -115,30 +115,30 @@ if __name__ == "__main__":
     dataset = DataSampler(data)
 
     if spatial:
-        train_indices, test_indices, validation_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
+        train_indices, validation_indices, test_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
                                                                        split_pct,
                                                                        generator=torch.Generator().manual_seed(seed))
 
         # Getting the spatial locations split into separate sets
         train_indices = dataset.coords_inverse_indicies[
             torch.isin(dataset.coords_inverse_indicies, torch.tensor(train_indices.indices))]
-        test_indices = dataset.coords_inverse_indicies[
-            torch.isin(dataset.coords_inverse_indicies, torch.tensor(test_indices.indices))]
         validation_indices = dataset.coords_inverse_indicies[
             torch.isin(dataset.coords_inverse_indicies, torch.tensor(validation_indices.indices))]
+        test_indices = dataset.coords_inverse_indicies[
+            torch.isin(dataset.coords_inverse_indicies, torch.tensor(test_indices.indices))]
 
         train_dataset = torch.utils.data.Subset(dataset, train_indices)
-        test_dataset = torch.utils.data.Subset(dataset, test_indices)
         validation_dataset = torch.utils.data.Subset(dataset, validation_indices)
+        test_dataset = torch.utils.data.Subset(dataset, test_indices)
     else:
-        train_dataset, test_dataset, validation_dataset = random_split(dataset, split_pct,
+        train_dataset, validation_dataset, test_dataset = random_split(dataset, split_pct,
                                                                        generator=torch.Generator().manual_seed(seed))
 
     # Make sure at least 1 species obserservations are present all splits
     # Can't make predictions for a species not present in training
     keep_y = (dataset.Y[train_dataset.indices].sum(dim=0) >= split_pct[0] * 10) & (
-                dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
-                dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
+                dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
+                dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
     dataset.Y = dataset.Y[:, keep_y]
     if dataset.using_total_counts:
         dataset.total_counts = ((dataset.Y / dataset.total_counts).sum(dim=1) * dataset.total_counts.squeeze()).int().reshape(-1, 1)
@@ -208,32 +208,6 @@ if __name__ == "__main__":
             pp = pprint.PrettyPrinter(stream=f)
             pp.pprint(config)
 
-    # Testing
-    test_dataloader = DataLoader(dataset=test_dataset,
-                                 batch_size=batch_size,
-                                 shuffle=True)
-
-    prob_list = []
-    y_test_list = []
-    for idx in test_dataloader:
-        X, Y, coords, traits = test_dataset.dataset.get_batch_data(idx)
-        res = model.forward(X, Y, coords, traits).detach()
-
-        prob_list.append(res)
-        y_test_list.append(Y / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
-
-    prob = torch.concat(prob_list)
-    test_Y = torch.concat(y_test_list)
-    del prob_list, y_test_list
-
-    torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
-    torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
-
-    from EcoGP.misc.calculate_metrics_fast import calculate_metrics
-
-    metrics = calculate_metrics(test_Y, prob)
-    print(metrics)
-
     # Validation
     validation_dataloader = DataLoader(dataset=validation_dataset,
                                  batch_size=batch_size,
@@ -242,7 +216,7 @@ if __name__ == "__main__":
     prob_list = []
     y_validation_list = []
     for idx in validation_dataloader:
-        X, Y, coords, traits = test_dataset.dataset.get_batch_data(idx)
+        X, Y, coords, traits = validation_dataset.dataset.get_batch_data(idx)
         res = model.forward(X, Y, coords, traits).detach()
 
         prob_list.append(res)
@@ -260,41 +234,33 @@ if __name__ == "__main__":
     metrics = calculate_metrics(validation_Y, prob)
     print(metrics)
 
+    # test
+    test_dataloader = DataLoader(dataset=test_dataset,
+                                 batch_size=batch_size,
+                                 shuffle=True)
 
-    # prob_list = []
-    # y_test_list = []
-    # for idx in test_dataloader:
-    #     batch = test_dataset.dataset.get_batch_data(idx)
-    #     batch["training"] = False
-    #     batch["do_spatial"] = False
-    #
-    #     predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=1000)
-    #
-    #     y = predictive(batch)["y"].mean(dim=0).squeeze()
-    #
-    #     prob_list.append(y)
-    #     y_test_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
-    #
-    # prob = torch.concat(prob_list)
-    # test_Y = torch.concat(y_test_list)
-    # del prob_list, y_test_list
-    #
-    # torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
-    # torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
-    #
-    # # print(metrics.mean_absolute_error(test_Y, prob))
-    # # print(precision_at_k(test_Y, prob, k=20).mean())
-    #
-    # from EcoGP.misc.calculate_metrics import calculate_metrics
-    #
-    # metrics = calculate_metrics(test_Y, prob)
-    # print(metrics)
-    #
-    # # Validation
-    # validation_dataloader = DataLoader(dataset=validation_dataset,
-    #                              batch_size=batch_size,
-    #                              shuffle=True)
-    #
+    prob_list = []
+    y_test_list = []
+    for idx in test_dataloader:
+        X, Y, coords, traits = validation_dataset.dataset.get_batch_data(idx)
+        res = model.forward(X, Y, coords, traits).detach()
+
+        prob_list.append(res)
+        y_test_list.append(Y / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
+
+    prob = torch.concat(prob_list)
+    test_Y = torch.concat(y_test_list)
+    del prob_list, y_test_list
+
+    torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
+    torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
+
+    from EcoGP.misc.calculate_metrics_fast import calculate_metrics
+
+    metrics = calculate_metrics(test_Y, prob)
+    print(metrics)
+
+
     # prob_list = []
     # y_validation_list = []
     # for idx in validation_dataloader:
@@ -302,7 +268,7 @@ if __name__ == "__main__":
     #     batch["training"] = False
     #     batch["do_spatial"] = False
     #
-    #     predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=50)
+    #     predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=1000)
     #
     #     y = predictive(batch)["y"].mean(dim=0).squeeze()
     #
@@ -315,5 +281,39 @@ if __name__ == "__main__":
     #
     # torch.save(prob, os.path.join(save_model_path, "Y_pred_validation.pt"))
     # torch.save(validation_Y, os.path.join(save_model_path, "Y_true_validation.pt"))
+    #
+    # # print(metrics.mean_absolute_error(validation_Y, prob))
+    # # print(precision_at_k(validation_Y, prob, k=20).mean())
+    #
+    # from EcoGP.misc.calculate_metrics import calculate_metrics
+    #
+    # metrics = calculate_metrics(validation_Y, prob)
+    # print(metrics)
+    #
+    # # test
+    # test_dataloader = DataLoader(dataset=test_dataset,
+    #                              batch_size=batch_size,
+    #                              shuffle=True)
+    #
+    # prob_list = []
+    # y_test_list = []
+    # for idx in test_dataloader:
+    #     batch = test_dataset.dataset.get_batch_data(idx)
+    #     batch["training"] = False
+    #     batch["do_spatial"] = False
+    #
+    #     predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=50)
+    #
+    #     y = predictive(batch)["y"].mean(dim=0).squeeze()
+    #
+    #     prob_list.append(y)
+    #     y_test_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
+    #
+    # prob = torch.concat(prob_list)
+    # test_Y = torch.concat(y_test_list)
+    # del prob_list, y_test_list
+    #
+    # torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
+    # torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
 
     print("Done")

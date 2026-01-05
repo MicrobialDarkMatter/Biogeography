@@ -73,7 +73,7 @@ if __name__ == "__main__":
         dataset = DataSampler(data)
 
         if spatial:
-            train_indices, test_indices, validation_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
+            train_indices, validation_indices, test_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
                                                                            split_pct,
                                                                            generator=torch.Generator().manual_seed(
                                                                                seed))
@@ -81,23 +81,23 @@ if __name__ == "__main__":
             # Getting the spatial locations split into separate sets
             train_indices = dataset.coords_inverse_indicies[
                 torch.isin(dataset.coords_inverse_indicies, torch.tensor(train_indices.indices))]
-            test_indices = dataset.coords_inverse_indicies[
-                torch.isin(dataset.coords_inverse_indicies, torch.tensor(test_indices.indices))]
             validation_indices = dataset.coords_inverse_indicies[
                 torch.isin(dataset.coords_inverse_indicies, torch.tensor(validation_indices.indices))]
+            test_indices = dataset.coords_inverse_indicies[
+                torch.isin(dataset.coords_inverse_indicies, torch.tensor(test_indices.indices))]
 
             train_dataset = torch.utils.data.Subset(dataset, train_indices)
-            test_dataset = torch.utils.data.Subset(dataset, test_indices)
             validation_dataset = torch.utils.data.Subset(dataset, validation_indices)
+            test_dataset = torch.utils.data.Subset(dataset, test_indices)
         else:
-            train_dataset, test_dataset, validation_dataset = random_split(dataset, split_pct,
+            train_dataset, validation_dataset, test_dataset = random_split(dataset, split_pct,
                                                                            generator=torch.Generator().manual_seed(
                                                                                seed))
 
         # Make sure at least 10 species obserservations are present in each subset of the data
         keep_y = (dataset.Y[train_dataset.indices].sum(dim=0) >= split_pct[0] * 10) & (
-                dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
-                         dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
+                dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
+                         dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
         dataset.Y = dataset.Y[:, keep_y]
         dataset.taxon_names = dataset.taxon_names[keep_y]
         dataset.n_species = dataset.Y.shape[1]

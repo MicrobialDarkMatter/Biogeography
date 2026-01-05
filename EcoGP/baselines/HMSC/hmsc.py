@@ -428,59 +428,59 @@ def train_svi(train_dataset, train_dataloader, epoch, model, guide, likelihood, 
     #     plt.show()
 
 
-def train_svi_cv(k_fold, train_dataset, batch_size, epoch, model, guide, likelihood, optimizer, verbose):
-    print("Depricated")
-    kf = KFold(n_splits=k_fold, shuffle=True)
-
-    # Loop through each fold
-    for fold, (train_idx, validation_idx) in enumerate(kf.split(train_dataset)):
-        print(f"\n~~~~~ Fold {fold + 1} ~~~~~")
-
-        # Define the data loaders for the current fold
-        train_dataloader = DataLoader(
-            dataset=train_dataset,
-            batch_size=batch_size,
-            sampler=torch.utils.data.SubsetRandomSampler(train_idx),
-        )
-
-        train_svi(
-            train_dataset=train_dataset,
-            train_dataloader=train_dataloader,
-            epoch=epoch,
-            model=model,
-            guide=guide,
-            likelihood=likelihood,
-            optimizer=optimizer,
-            verbose=verbose,
-        )
-
-        # Evaluate
-        validation_idx = train_dataset.indices
-        # test_data = dataset.get_batch_data(test_idx)
-        validation_data = train_dataset.dataset.get_batch_data(validation_idx)
-        validation_data["training"] = False
-
-        predictive = Predictive(model, guide=guide, num_samples=50)
-
-        predict = predictive(validation_data, likelihood)["y"].mean(dim=0)
-
-        auc_per_species = [
-            metrics.roc_auc_score(validation_data.get("Y")[:, i].bool().int(), predict[:, i]) if not all(
-                validation_data.get("Y")[:, i] == 0) else float("nan") for i in
-            range(validation_data.get("Y").shape[1])
-        ]
-
-        auc = torch.tensor(auc_per_species)
-        means_tensor = auc[~torch.isnan(auc)]
-
-        if True:  # Metrics
-            above_average = (means_tensor > 0.5).sum().item()
-            below_average = (means_tensor <= 0.5).sum().item()
-
-            pct_good = above_average / (above_average + below_average)
-            print(f"Species ROC above 50%: {pct_good * 100:.2f}%")
-
-            print(f"Species ROC above 50% * average: {pct_good * means_tensor.mean():.4f}")
+# def train_svi_cv(k_fold, train_dataset, batch_size, epoch, model, guide, likelihood, optimizer, verbose):
+#     print("Depricated")
+#     kf = KFold(n_splits=k_fold, shuffle=True)
+#
+#     # Loop through each fold
+#     for fold, (train_idx, test_idx) in enumerate(kf.split(train_dataset)):
+#         print(f"\n~~~~~ Fold {fold + 1} ~~~~~")
+#
+#         # Define the data loaders for the current fold
+#         train_dataloader = DataLoader(
+#             dataset=train_dataset,
+#             batch_size=batch_size,
+#             sampler=torch.utils.data.SubsetRandomSampler(train_idx),
+#         )
+#
+#         train_svi(
+#             train_dataset=train_dataset,
+#             train_dataloader=train_dataloader,
+#             epoch=epoch,
+#             model=model,
+#             guide=guide,
+#             likelihood=likelihood,
+#             optimizer=optimizer,
+#             verbose=verbose,
+#         )
+#
+#         # Evaluate
+#         test_idx = train_dataset.indices
+#         # validation_data = dataset.get_batch_data(validation_idx)
+#         test_data = train_dataset.dataset.get_batch_data(test_idx)
+#         test_data["training"] = False
+#
+#         predictive = Predictive(model, guide=guide, num_samples=50)
+#
+#         predict = predictive(test_data, likelihood)["y"].mean(dim=0)
+#
+#         auc_per_species = [
+#             metrics.roc_auc_score(test_data.get("Y")[:, i].bool().int(), predict[:, i]) if not all(
+#                 test_data.get("Y")[:, i] == 0) else float("nan") for i in
+#             range(test_data.get("Y").shape[1])
+#         ]
+#
+#         auc = torch.tensor(auc_per_species)
+#         means_tensor = auc[~torch.isnan(auc)]
+#
+#         if True:  # Metrics
+#             above_average = (means_tensor > 0.5).sum().item()
+#             below_average = (means_tensor <= 0.5).sum().item()
+#
+#             pct_good = above_average / (above_average + below_average)
+#             print(f"Species ROC above 50%: {pct_good * 100:.2f}%")
+#
+#             print(f"Species ROC above 50% * average: {pct_good * means_tensor.mean():.4f}")
 
 
 def learn_model():
@@ -547,7 +547,7 @@ def learn_model():
         dataset = DataSampler(data)
 
         if spatial:
-            train_indices, test_indices, validation_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
+            train_indices, validation_indices, test_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
                                                                            split_pct,
                                                                            generator=torch.Generator().manual_seed(
                                                                                seed))
@@ -555,23 +555,23 @@ def learn_model():
             # Getting the spatial locations split into separate sets
             train_indices = dataset.coords_inverse_indicies[
                 torch.isin(dataset.coords_inverse_indicies, torch.tensor(train_indices.indices))]
-            test_indices = dataset.coords_inverse_indicies[
-                torch.isin(dataset.coords_inverse_indicies, torch.tensor(test_indices.indices))]
             validation_indices = dataset.coords_inverse_indicies[
                 torch.isin(dataset.coords_inverse_indicies, torch.tensor(validation_indices.indices))]
+            test_indices = dataset.coords_inverse_indicies[
+                torch.isin(dataset.coords_inverse_indicies, torch.tensor(test_indices.indices))]
 
             train_dataset = torch.utils.data.Subset(dataset, train_indices)
-            test_dataset = torch.utils.data.Subset(dataset, test_indices)
             validation_dataset = torch.utils.data.Subset(dataset, validation_indices)
+            test_dataset = torch.utils.data.Subset(dataset, test_indices)
         else:
-            train_dataset, test_dataset, validation_dataset = random_split(dataset, split_pct,
+            train_dataset, validation_dataset, test_dataset = random_split(dataset, split_pct,
                                                                            generator=torch.Generator().manual_seed(
                                                                                seed))
 
         # Make sure at least 10 species obserservations are present in each subset of the data
         keep_y = (dataset.Y[train_dataset.indices].sum(dim=0) >= split_pct[0] * 10) & (
-                dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
-                         dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
+                dataset.Y[validation_dataset.indices].sum(dim=0) >= split_pct[1] * 10) & (
+                         dataset.Y[test_dataset.indices].sum(dim=0) >= split_pct[2] * 10)
         dataset.Y = dataset.Y[:, keep_y]
         dataset.taxon_names = dataset.taxon_names[keep_y]
         dataset.n_species = dataset.Y.shape[1]
@@ -590,17 +590,18 @@ def learn_model():
 
         # Training
         if config["hmsc"]["cross_validation"]:
-            train_svi_cv(
-                k_fold=config["hmsc"]["k_fold"],
-                train_dataset=train_dataset,
-                batch_size=config["general"]["batch_size"],
-                epoch=config["general"]["n_iter"],
-                model=model.model,
-                guide=model.guide,
-                likelihood=config["hmsc"]["likelihood"],
-                optimizer=optimizer,
-                verbose=config["general"]["verbose"]
-            )
+            print("CV Depricated")
+            # train_svi_cv(
+            #     k_fold=config["hmsc"]["k_fold"],
+            #     train_dataset=train_dataset,
+            #     batch_size=config["general"]["batch_size"],
+            #     epoch=config["general"]["n_iter"],
+            #     model=model.model,
+            #     guide=model.guide,
+            #     likelihood=config["hmsc"]["likelihood"],
+            #     optimizer=optimizer,
+            #     verbose=config["general"]["verbose"]
+            # )
         else:
             train_svi(
                 train_dataset=train_dataset,
@@ -614,9 +615,9 @@ def learn_model():
             )
 
         # Testing
-        test_idx = validation_dataset.indices
-        # test_data = dataset.get_batch_data(test_idx)
-        X, Y, coords, traits = validation_dataset.dataset.get_batch_data(test_idx)
+        test_idx = test_dataset.indices
+        # validation_data = dataset.get_batch_data(validation_idx)
+        X, Y, coords, traits = test_dataset.dataset.get_batch_data(test_idx)
         training = False
 
         predictive = Predictive(model.model, guide=model.guide, num_samples=100)
