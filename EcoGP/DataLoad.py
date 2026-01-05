@@ -43,6 +43,9 @@ class DataLoad():
         self.X_continuous_mean = None
         self.X_continuous_std = None
 
+        self.coords_mean = None
+        self.coords_std = None
+
         # Data
         self.load_X(X_path)
         self.load_Y(Y_path)
@@ -87,7 +90,9 @@ class DataLoad():
 
             if True:  # Std norm coordinates
                 print("Standard Normalizing Coordinates")
-                self.coords = (self.coords - self.coords.mean(dim=0)) / self.coords.std(dim=0)
+                self.coords_mean = self.coords.mean(dim=0)
+                self.coords_std = self.coords.std(dim=0)
+                self.coords = (self.coords - self.coords_mean) / self.coords_std
 
     def load_traits(self, traits_path):
         if self.using_traits:

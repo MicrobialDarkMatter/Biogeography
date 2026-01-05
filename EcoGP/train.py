@@ -155,8 +155,7 @@ if __name__ == "__main__":
     n_tasks = dataset.n_species
     n_variables = dataset.n_env
     # n_traits = dataset.n_traits
-    unique_coordinates = dataset.unique_coords[
-        dataset.get_dist_idx_reverse(train_dataset.indices)[0]] if spatial else None
+    unique_coordinates = dataset.coords if spatial else None
 
     model = EcoGP(
         n_latents_env,
@@ -181,13 +180,13 @@ if __name__ == "__main__":
     model.train()
 
     losses = []
-
+    training = True
     iterator = tqdm.tqdm(range(n_iter))
     for i in iterator:
         loss = 0
         for idx in train_dataloader:
-            batch = train_dataset.dataset.get_batch_data(idx)
-            loss += svi.step(batch) / batch.get("Y").nelement()
+            X, Y, coords, traits = train_dataset.dataset.get_batch_data(idx)
+            loss += svi.step(X, Y, coords, traits) / Y.nelement()
 
         iterator.set_postfix(loss=loss)
         losses.append(loss)
@@ -209,19 +208,19 @@ if __name__ == "__main__":
             pp = pprint.PrettyPrinter(stream=f)
             pp.pprint(config)
 
-        # Testing
-        test_dataloader = DataLoader(dataset=test_dataset,
-                                     batch_size=batch_size,
-                                     shuffle=True)
+    # Testing
+    test_dataloader = DataLoader(dataset=test_dataset,
+                                 batch_size=batch_size,
+                                 shuffle=True)
 
     prob_list = []
     y_test_list = []
     for idx in test_dataloader:
-        batch = test_dataset.dataset.get_batch_data(idx)
-        res = model.forward(batch).detach()
+        X, Y, coords, traits = test_dataset.dataset.get_batch_data(idx)
+        res = model.forward(X, Y, coords, traits).detach()
 
         prob_list.append(res)
-        y_test_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
+        y_test_list.append(Y / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
 
     prob = torch.concat(prob_list)
     test_Y = torch.concat(y_test_list)
@@ -243,11 +242,11 @@ if __name__ == "__main__":
     prob_list = []
     y_validation_list = []
     for idx in validation_dataloader:
-        batch = test_dataset.dataset.get_batch_data(idx)
-        res = model.forward(batch).detach()
+        X, Y, coords, traits = test_dataset.dataset.get_batch_data(idx)
+        res = model.forward(X, Y, coords, traits).detach()
 
         prob_list.append(res)
-        y_validation_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
+        y_validation_list.append(Y / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
 
     prob = torch.concat(prob_list)
     validation_Y = torch.concat(y_validation_list)
@@ -255,6 +254,11 @@ if __name__ == "__main__":
 
     torch.save(prob, os.path.join(save_model_path, "Y_pred_validation.pt"))
     torch.save(validation_Y, os.path.join(save_model_path, "Y_true_validation.pt"))
+
+    from EcoGP.misc.calculate_metrics_fast import calculate_metrics
+
+    metrics = calculate_metrics(validation_Y, prob)
+    print(metrics)
 
 
     # prob_list = []

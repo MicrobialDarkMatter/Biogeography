@@ -47,12 +47,21 @@ class EcoGP(pyro.nn.PyroModule):
             self.g = SpatialGP(n_latents=n_latents_spatial, unique_coordinates=unique_coordinates,
                                n_inducing_points=n_inducing_points_spatial)
 
-    def model(self, batch):
+    def model(self, X=None, Y=None, coords=None, traits=None, training=True):
+        """
+
+        :param X:
+        :param Y:
+        :param coords:
+        :param traits:
+        :param training:
+        :return:
+        """
         pyro.module("model", self)
 
-        n_samples = batch.get("n_samples_batch")
-        n_species = batch.get("n_species")
-        n_traits = batch.get("n_traits")
+        n_samples = next(input_data.size(0) for input_data in (X, Y, coords) if input_data is not None)
+        n_species = Y.size(1) if Y is not None else None
+        n_traits = traits.size(1) if traits is not None else None
 
         samples_plate = pyro.plate(name="samples_plate", size=n_samples, dim=-2)
         species_plate = pyro.plate(name="species_plate", size=n_species, dim=-1)
@@ -60,7 +69,7 @@ class EcoGP(pyro.nn.PyroModule):
         z = 0
 
         if self.environment:
-            f_dist = self.f.pyro_model(batch.get("X"), name_prefix="f_GP")
+            f_dist = self.f.pyro_model(X, name_prefix="f_GP")
 
             # Use a plate here to mark conditional independencies
             with pyro.plate("L_plate", dim=-1):
@@ -91,7 +100,7 @@ class EcoGP(pyro.nn.PyroModule):
             z = z + f_samples @ w
 
         if self.spatial:
-            g_dist = self.g.pyro_model(batch.get("coords"), name_prefix="g_GP")
+            g_dist = self.g.pyro_model(coords, name_prefix="g_GP")
 
             with pyro.plate("M_plate", dim=-1):
                 # Sample from latent function distribution
@@ -118,10 +127,11 @@ class EcoGP(pyro.nn.PyroModule):
 
         z = z + bias
 
-        self.likelihood(z, batch, samples_plate, species_plate)
+        self.likelihood(z, Y, training, samples_plate, species_plate)
 
-    def guide(self, batch):
-        n_species = batch.get("n_species")
+    def guide(self, X=None, Y=None, coords=None, traits=None, training=True):
+        n_species = Y.size(1) if Y is not None else None
+
         species_plate = pyro.plate(name="species_plate", size=n_species, dim=-1)
 
         if self.environment:
@@ -160,14 +170,14 @@ class EcoGP(pyro.nn.PyroModule):
                 w = pyro.sample("w", dist.Normal(loc=w_loc, scale=w_scale))
 
             # pyro.module(self.name_prefixes[i], self.gp_models[i])
-            f_dist = self.f.pyro_guide(batch.get("X"), name_prefix="f_GP")
+            f_dist = self.f.pyro_guide(X, name_prefix="f_GP")
             # Use a plate here to mark conditional independencies
             with pyro.plate("L_plate", dim=-1):
                 # Sample from latent function distribution
                 f_samples = pyro.sample(".f(x)", f_dist)
 
         if self.spatial:
-            g_dist = self.g.pyro_guide(batch.get("coords"), name_prefix="g_GP")  # TODO: BREAKER
+            g_dist = self.g.pyro_guide(coords, name_prefix="g_GP")  # TODO: BREAKER
             # Use a plate here to mark conditional independencies
             with pyro.plate("M_plate", dim=-1):
                 # Sample from latent function distribution
@@ -196,18 +206,18 @@ class EcoGP(pyro.nn.PyroModule):
         with species_plate:
             bias = pyro.sample("b", dist.Normal(loc=bias_loc, scale=bias_scale))
 
-    def forward(self, batch):
+    def forward(self, X=None, Y=None, coords=None, traits=None, training=True):
         # Point prediction
         z = 0
 
         if self.environment:
-            f_samples = self.f.pyro_guide(batch.get("X"), name_prefix="f_GP").mean
+            f_samples = self.f.pyro_guide(X, name_prefix="f_GP").mean
             w = pyro.param("w_loc")
 
             z = z + f_samples @ w
 
         if self.spatial:
-            g_samples = self.g.pyro_guide(batch.get("coords"), name_prefix="g_GP").mean
+            g_samples = self.g.pyro_guide(coords, name_prefix="g_GP").mean
             v = pyro.param("v_loc")
 
             z = z + g_samples @ v
