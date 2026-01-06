@@ -18,6 +18,7 @@ class DataLoad():
         """
         # Device has been set to CPU as it's too large to fit into the GPU
         self.device = device
+        self.using_environment = True if X_path else False
         self.using_coordinates = True if coords_path else False
         self.using_traits = True if traits_path else False
         self.using_total_counts = True if total_counts_path else False
@@ -58,13 +59,15 @@ class DataLoad():
         self.unique_coordinates()
 
         self.n_species = self.Y.shape[1]
-        self.n_env = self.X.shape[1]
-        assert self.Y.shape[0] == self.X.shape[0], "Samples in X and Y differ!"
+
+        self.n_env = self.X.shape[1] if self.using_environment else 0
         self.n_samples = self.Y.shape[0]
-        if self.using_traits:
-            self.n_traits = self.traits.shape[1]
+        self.n_traits = self.traits.shape[1] if self.using_traits else 0
 
     def load_X(self, X_path):
+        if self.using_environment is False:
+            return None
+
         X = pd.read_csv(X_path, index_col=0)
         self.env_names = np.array(X.columns.tolist())
         self.site_names = np.array(X.index.tolist())
@@ -84,6 +87,8 @@ class DataLoad():
             print(f"Load Y: {len(self.site_names)} sample sites and {len(self.taxon_names)} taxons")
 
     def load_coords(self, coords_path):
+        if self.using_coordinates is False:
+            return None
         # Distance matrix
         if self.using_coordinates:
             self.coords = torch.tensor(pd.read_csv(coords_path, index_col=0).values, dtype=torch.float32)
@@ -102,6 +107,9 @@ class DataLoad():
                 self.traits = (self.traits - self.traits.mean(dim=0)) / self.traits.std(dim=0)
 
     def validate_X(self):
+        if self.using_environment is False:
+            return None
+
         # Check for 0 standard deviation
         env_std = self.X.std(dim=0)
         env_std_non_0 = env_std != 0
@@ -133,6 +141,9 @@ class DataLoad():
         # TODO: More checks
 
     def transform_X(self):
+        if self.using_environment is False:
+            return None
+
         if self.normalize_X:
             self.X_continuous = ~torch.all((self.X == 0.0) | (self.X == 1.0), dim=0)
             self.X_continuous_mean = self.X[:, self.X_continuous].mean(dim=0)

@@ -65,9 +65,9 @@ if __name__ == "__main__":
         config["general"]["seed"] = args.seed
 
     # ARGUMENTS
-    environment = config["additive"]["environment"]
-    spatial = config["additive"]["spatial"]
-    traits = config["additive"]["traits"]
+    # environment = config["additive"]["environment"]
+    # spatial = config["additive"]["spatial"]
+    # traits = config["additive"]["traits"]
 
     x_path = config["data"]["X_path"]
     y_path = config["data"]["Y_path"]
@@ -76,8 +76,8 @@ if __name__ == "__main__":
     total_counts_path = config["data"]["total_counts_path"]
     #hierarchy_path = config["data"]["hierarchy_path"]
 
-    n_latents_env = config["environmental"]["n_latents"]
-    n_latents_spatial = config["spatial"]["n_latents"]
+    n_latents_env = config["environmental"]["n_latents"] if x_path is not None else None
+    n_latents_spatial = config["spatial"]["n_latents"] if coords_path is not None else None
     n_iter = config["general"]["n_iter"]
     n_particles = config["general"]["n_particles"]
     device = config["general"]["device"]
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
     dataset = DataSampler(data)
 
-    if spatial:
+    if coords_path:
         train_indices, validation_indices, test_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
                                                                        split_pct,
                                                                        generator=torch.Generator().manual_seed(seed))
@@ -155,7 +155,7 @@ if __name__ == "__main__":
     n_tasks = dataset.n_species
     n_variables = dataset.n_env
     # n_traits = dataset.n_traits
-    unique_coordinates = dataset.coords if spatial else None
+    unique_coordinates = dataset.coords if coords_path else None
 
     model = EcoGP(
         n_latents_env,
@@ -164,9 +164,9 @@ if __name__ == "__main__":
         n_latents_spatial,
         n_inducing_points_spatial,
         unique_coordinates,
-        environment=environment,
-        spatial=spatial,
-        traits=traits,
+        # environment=environment,
+        # spatial=spatial,
+        # traits=traits,
         likelihood=likelihood
     ).to(device)
 
@@ -259,61 +259,5 @@ if __name__ == "__main__":
 
     metrics = calculate_metrics(test_Y, prob)
     print(metrics)
-
-
-    # prob_list = []
-    # y_validation_list = []
-    # for idx in validation_dataloader:
-    #     batch = validation_dataset.dataset.get_batch_data(idx)
-    #     batch["training"] = False
-    #     batch["do_spatial"] = False
-    #
-    #     predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=1000)
-    #
-    #     y = predictive(batch)["y"].mean(dim=0).squeeze()
-    #
-    #     prob_list.append(y)
-    #     y_validation_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
-    #
-    # prob = torch.concat(prob_list)
-    # validation_Y = torch.concat(y_validation_list)
-    # del prob_list, y_validation_list
-    #
-    # torch.save(prob, os.path.join(save_model_path, "Y_pred_validation.pt"))
-    # torch.save(validation_Y, os.path.join(save_model_path, "Y_true_validation.pt"))
-    #
-    # # print(metrics.mean_absolute_error(validation_Y, prob))
-    # # print(precision_at_k(validation_Y, prob, k=20).mean())
-    #
-    # from EcoGP.misc.calculate_metrics import calculate_metrics
-    #
-    # metrics = calculate_metrics(validation_Y, prob)
-    # print(metrics)
-    #
-    # # test
-    # test_dataloader = DataLoader(dataset=test_dataset,
-    #                              batch_size=batch_size,
-    #                              shuffle=True)
-    #
-    # prob_list = []
-    # y_test_list = []
-    # for idx in test_dataloader:
-    #     batch = test_dataset.dataset.get_batch_data(idx)
-    #     batch["training"] = False
-    #     batch["do_spatial"] = False
-    #
-    #     predictive = pyro.infer.Predictive(model.model, guide=model.guide, num_samples=50)
-    #
-    #     y = predictive(batch)["y"].mean(dim=0).squeeze()
-    #
-    #     prob_list.append(y)
-    #     y_test_list.append(batch.get("Y") / (dataset.total_counts[idx] if dataset.using_total_counts else 1))
-    #
-    # prob = torch.concat(prob_list)
-    # test_Y = torch.concat(y_test_list)
-    # del prob_list, y_test_list
-    #
-    # torch.save(prob, os.path.join(save_model_path, "Y_pred_test.pt"))
-    # torch.save(test_Y, os.path.join(save_model_path, "Y_true_test.pt"))
 
     print("Done")

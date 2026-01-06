@@ -156,9 +156,9 @@ if __name__ == "__main__":
     from configs.config_toy import config
 
     # ARGUMENTS
-    environment = config["additive"]["environment"]
-    spatial = config["additive"]["spatial"]
-    traits = config["additive"]["traits"]
+    # environment = config["additive"]["environment"]
+    # spatial = config["additive"]["spatial"]
+    # traits = config["additive"]["traits"]
 
     x_path = config["data"]["X_path"]
     y_path = config["data"]["Y_path"]
@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
         dataset = DataSampler(data)
 
-        if spatial:
+        if coords_path:
             train_indices, validation_indices, test_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
                                                                            split_pct,
                                                                            generator=torch.Generator().manual_seed(
@@ -250,7 +250,7 @@ if __name__ == "__main__":
         n_tasks = dataset.n_species
         n_variables = dataset.n_env
         # n_traits = dataset.n_traits
-        unique_coordinates = dataset.unique_coords if spatial else None
+        unique_coordinates = dataset.unique_coords if coords_path else None
 
         model = MicroGP(
             n_latents_env,
@@ -259,9 +259,6 @@ if __name__ == "__main__":
             n_latents_spatial,
             n_inducing_points_spatial,
             unique_coordinates,
-            environment=environment,
-            spatial=spatial,
-            traits=traits
         ).to(device)
 
         optimizer = pyro.optim.Adam({"lr": lr})

@@ -22,9 +22,9 @@ if __name__ == "__main__":
     from configs.config_toy import config
 
     # ARGUMENTS
-    environment = config["additive"]["environment"]
-    spatial = config["additive"]["spatial"]
-    traits = config["additive"]["traits"]
+    # environment = config["additive"]["environment"]
+    # spatial = config["additive"]["spatial"]
+    # traits = config["additive"]["traits"]
 
     x_path = config["data"]["X_path"]
     y_path = config["data"]["Y_path"]
@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
         dataset = DataSampler(data)
 
-        if spatial:
+        if coords_path:
             train_indices, validation_indices, test_indices = random_split(torch.arange(dataset.unique_coords.shape[0]),
                                                                            split_pct,
                                                                            generator=torch.Generator().manual_seed(

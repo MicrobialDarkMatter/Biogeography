@@ -9,6 +9,7 @@ import tqdm
 import wandb
 import sys
 import os
+import warnings
 
 from EcoGP.MultitaskVariationalStrategy import MultitaskVariationalStrategy
 from EcoGP.likelihoods import DirichletMultinomialLikelihood, BernoulliLikelihood
@@ -22,28 +23,24 @@ class EcoGP(pyro.nn.PyroModule):
                  n_latents_spatial=None,
                  n_inducing_points_spatial=None,
                  unique_coordinates=None,
-                 environment=True,
-                 spatial=True,
-                 traits=True,
                  likelihood=None):
         super().__init__()
 
+        self.n_latents_env = n_latents_env
+        self.n_latents_spatial = n_latents_spatial
+
+        assert self.n_latents_env is None or (isinstance(self.n_latents_env, int) and self.n_latents_env > 0), (
+            warnings.warn("self.n_latents_env must be a positive integer or None", UserWarning))
+        assert self.n_latents_spatial is None or (isinstance(self.n_latents_spatial, int) and self.n_latents_spatial > 0), (
+            warnings.warn("self.n_latents_spatial must be a positive integer or None", UserWarning))
+
         self.likelihood = likelihood
 
-        self.environment = environment
-        self.spatial = spatial
-        self.traits = traits
-
-        assert self.environment + self.spatial + self.traits, f"Model cannot run without any components! {self.environment=}, {self.spatial =}, {self.traits=}"
-        print(f"Running with components: {self.environment=}, {self.spatial=}, {self.traits=}")
-
-        if self.environment:
-            self.n_latents_env = n_latents_env
+        if self.n_latents_env is not None:
             self.f = EnvironmentGP(n_latents=n_latents_env, n_variables=n_variables,
                                    n_inducing_points=n_inducing_points_env)
 
-        if self.spatial:
-            self.n_latents_spatial = n_latents_spatial
+        if self.n_latents_spatial is not None:
             self.g = SpatialGP(n_latents=n_latents_spatial, unique_coordinates=unique_coordinates,
                                n_inducing_points=n_inducing_points_spatial)
 
@@ -68,7 +65,7 @@ class EcoGP(pyro.nn.PyroModule):
 
         z = 0
 
-        if self.environment:
+        if self.n_latents_env is not None:
             f_dist = self.f.pyro_model(X, name_prefix="f_GP")
 
             # Use a plate here to mark conditional independencies
@@ -89,7 +86,7 @@ class EcoGP(pyro.nn.PyroModule):
             #     w = pyro.sample("w", dist.Normal(loc=w_loc, scale=torch.ones_like(w_loc)).to_event(1))
             # z = z + f_samples @ w.squeeze().reshape(n_species, self.n_latents_env).T
 
-            if self.traits:
+            if traits is not None:
                 print("Traits not completed")
 
             w_loc = torch.zeros(self.n_latents_env, n_species)
@@ -99,7 +96,7 @@ class EcoGP(pyro.nn.PyroModule):
 
             z = z + f_samples @ w
 
-        if self.spatial:
+        if self.n_latents_spatial is not None:
             g_dist = self.g.pyro_model(coords, name_prefix="g_GP")
 
             with pyro.plate("M_plate", dim=-1):
@@ -134,7 +131,7 @@ class EcoGP(pyro.nn.PyroModule):
 
         species_plate = pyro.plate(name="species_plate", size=n_species, dim=-1)
 
-        if self.environment:
+        if self.n_latents_env is not None:
             # w_loc = pyro.param(
             #     "w_loc",
             #     torch.zeros(n_species, self.n_latents_env)
@@ -176,7 +173,7 @@ class EcoGP(pyro.nn.PyroModule):
                 # Sample from latent function distribution
                 f_samples = pyro.sample(".f(x)", f_dist)
 
-        if self.spatial:
+        if self.n_latents_spatial is not None:
             g_dist = self.g.pyro_guide(coords, name_prefix="g_GP")  # TODO: BREAKER
             # Use a plate here to mark conditional independencies
             with pyro.plate("M_plate", dim=-1):
@@ -210,13 +207,13 @@ class EcoGP(pyro.nn.PyroModule):
         # Point prediction
         z = 0
 
-        if self.environment:
+        if self.n_latents_env is not None:
             f_samples = self.f.pyro_guide(X, name_prefix="f_GP").mean
             w = pyro.param("w_loc")
 
             z = z + f_samples @ w
 
-        if self.spatial:
+        if self.n_latents_spatial is not None:
             g_samples = self.g.pyro_guide(coords, name_prefix="g_GP").mean
             v = pyro.param("v_loc")
 
@@ -254,16 +251,7 @@ class EnvironmentGP(gpytorch.models.ApproximateGP):
         super().__init__(variational_strategy)
 
         # The mean and covariance modules should be marked as batch, so we learn a different set of hyperparameters
-        # self.mean_module = gpytorch.means.ZeroMean(batch_shape=torch.Size([n_latents]))
-        # # self.mean_module = gpytorch.means.ConstantMean(prior=gpytorch.priors.NormalPrior(loc=-3.0, scale=1.0), batch_shape=torch.Size([n_latents]))
-        # self.covar_module = gpytorch.kernels.RBFKernel(
-        #     lengthscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=5),
-        #     batch_shape=torch.Size([n_latents]),
-        #     ard_num_dims=n_variables,
-        # )
-
         self.mean_module = gpytorch.means.ZeroMean(batch_shape=torch.Size([n_latents]))
-        # self.mean_module = gpytorch.means.LinearMean(input_size=n_variables, batch_shape=torch.Size([n_latents]))
         self.covar_module = gpytorch.kernels.ScaleKernel(
             gpytorch.kernels.RBFKernel(
                 lengthscale_prior=gpytorch.priors.GammaPrior(rate=1, concentration=5),
