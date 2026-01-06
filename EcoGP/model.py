@@ -16,6 +16,9 @@ from EcoGP.likelihoods import DirichletMultinomialLikelihood, BernoulliLikelihoo
 
 
 class EcoGP(pyro.nn.PyroModule):
+    """
+    EcoGP model combining environmental and spatial Gaussian Processes.
+    """
     def __init__(self,
                  n_latents_env=None,
                  n_variables=None,
@@ -46,13 +49,14 @@ class EcoGP(pyro.nn.PyroModule):
 
     def model(self, X=None, Y=None, coords=None, traits=None, training=True):
         """
+        Model specification for EcoGP.
 
-        :param X:
-        :param Y:
-        :param coords:
-        :param traits:
-        :param training:
-        :return:
+        :param X: Environmental features as a tensor of shape [n_samples, n_variables].
+        :param Y: Species occurrence/abundance data as a tensor of shape [n_samples, n_species].
+        :param coords: Spatial coordinates as a tensor of shape [n_samples, 2] (latitude, longitude).
+        :param traits: Species traits as a tensor of shape [n_species, n_traits].
+        :param training: Boolean indicating if the model is in training mode.
+        :return: None
         """
         pyro.module("model", self)
 
@@ -68,11 +72,12 @@ class EcoGP(pyro.nn.PyroModule):
         if self.n_latents_env is not None:
             f_dist = self.f.pyro_model(X, name_prefix="f_GP")
 
-            # Use a plate here to mark conditional independencies
+            # f independent across L latents
             with pyro.plate("L_plate", dim=-1):
                 # Sample from latent function distribution
                 f_samples = pyro.sample(".f(x)", f_dist)
 
+            # Correcting shape-mismatch, which may occur using particles
             f_samples = f_samples if f_samples.shape == torch.Size([n_samples, self.n_latents_env]) else f_samples.mean(
                 dim=0).reshape(n_samples, self.n_latents_env)
 
@@ -91,6 +96,7 @@ class EcoGP(pyro.nn.PyroModule):
 
             w_loc = torch.zeros(self.n_latents_env, n_species)
             w_scale = torch.ones(self.n_latents_env, n_species)
+            # w independent across environmental latents and species
             with species_plate, pyro.plate("env_latents_plate_w", self.n_latents_env, dim=-2):
                 w = pyro.sample("w", dist.Normal(loc=w_loc, scale=w_scale))
 
@@ -99,26 +105,26 @@ class EcoGP(pyro.nn.PyroModule):
         if self.n_latents_spatial is not None:
             g_dist = self.g.pyro_model(coords, name_prefix="g_GP")
 
+            # g independent across M latents
             with pyro.plate("M_plate", dim=-1):
                 # Sample from latent function distribution
                 g_samples = pyro.sample(".g(coords)", g_dist)
 
+            # Correcting shape-mismatch, which may occur using particles
             g_samples = g_samples if g_samples.shape == torch.Size(
                 [n_samples, self.n_latents_spatial]) else g_samples.mean(dim=0).reshape(
                 n_samples, self.n_latents_spatial)
-            # g_samples = g_samples if g_samples.shape == torch.Size(
-            #     [batch["n_locs_batch"], self.n_latents_spatial]) else g_samples.mean(dim=0).reshape(
-            #     batch["n_locs_batch"], self.n_latents_spatial)
-            # g_samples = g_samples[batch["batch_inverse"]]
 
             # v = pyro.param("v", torch.randn(self.n_latents_spatial, n_species))
             v_loc = torch.zeros(self.n_latents_spatial, n_species)
             v_scale = torch.ones(self.n_latents_spatial, n_species)
+            # v independent across spatial latents and species
             with species_plate, pyro.plate("spatial_latents_plate_v", self.n_latents_spatial, dim=-2):
                 v = pyro.sample("v", dist.Normal(loc=v_loc, scale=v_scale))
 
             z = z + g_samples @ v
 
+        # bias independent across species
         with species_plate:
             bias = pyro.sample("b", dist.Normal(loc=torch.zeros(n_species), scale=torch.ones(n_species)))
 
@@ -127,6 +133,16 @@ class EcoGP(pyro.nn.PyroModule):
         self.likelihood(z, Y, training, samples_plate, species_plate)
 
     def guide(self, X=None, Y=None, coords=None, traits=None, training=True):
+        """
+        Variational guide for EcoGP.
+
+        :param X: Environmental features as a tensor of shape [n_samples, n_variables].
+        :param Y: Species occurrence/abundance data as a tensor of shape [n_samples, n_species].
+        :param coords: Spatial coordinates as a tensor of shape [n_samples, 2] (latitude, longitude).
+        :param traits: Species traits as a tensor of shape [n_species, n_traits].
+        :param training: Boolean indicating if the model is in training mode.
+        :return: None
+        """
         n_species = Y.size(1) if Y is not None else None
 
         species_plate = pyro.plate(name="species_plate", size=n_species, dim=-1)
@@ -204,6 +220,16 @@ class EcoGP(pyro.nn.PyroModule):
             bias = pyro.sample("b", dist.Normal(loc=bias_loc, scale=bias_scale))
 
     def forward(self, X=None, Y=None, coords=None, traits=None, training=True):
+        """
+        Forward pass for point prediction, otherwise call self.model().
+
+        :param X: Environmental features as a tensor of shape [n_samples, n_variables].
+        :param Y: Species occurrence/abundance data as a tensor of shape [n_samples, n_species].
+        :param coords: Spatial coordinates as a tensor of shape [n_samples, 2] (latitude, longitude).
+        :param traits: Species traits as a tensor of shape [n_species, n_traits].
+        :param training: Boolean indicating if the model is in training mode.
+        :return: Predicted species occurrence/abundance as a tensor of shape [n_samples, n_species].
+        """
         # Point prediction
         z = 0
 
@@ -231,6 +257,9 @@ class EcoGP(pyro.nn.PyroModule):
 
 
 class EnvironmentGP(gpytorch.models.ApproximateGP):
+    """
+    Environmental Gaussian Process model for EcoGP.
+    """
     def __init__(self, n_latents, n_variables, n_inducing_points):
         self.n_latents = n_latents
         # Let's use a different set of inducing points for each latent function
@@ -309,6 +338,9 @@ class HaversineRBFKernel(gpytorch.kernels.Kernel):
 
 
 class SpatialGP(gpytorch.models.ApproximateGP):
+    """
+    Spatial Gaussian Process model for EcoGP.
+    """
     def __init__(self, n_latents, unique_coordinates, n_inducing_points):
         self.n_latents = n_latents
         num_coords = unique_coordinates.size(0)

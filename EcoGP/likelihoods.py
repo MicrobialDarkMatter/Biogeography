@@ -6,6 +6,16 @@ from EcoGP.DirichletMultinomial import DirichletMultinomial
 
 
 def DirichletMultinomialLikelihood(z, Y, training, samples_plate, species_plate):
+    """
+    Dirichlet-Multinomial likelihood for modeling count data.
+
+    :param z: Sum from LMC of environmental and spatial components as a tensor of shape [n_samples, n_species].
+    :param Y: Species occurrence/abundance data as a tensor of shape [n_samples, n_species].
+    :param training: Boolean to indicate training or prediction mode, thus "masking" the observations during prediction
+    :param samples_plate: pyro.plate for samples
+    :param species_plate: pyro.plate for species
+    :return: None
+    """
     z = torch.nn.functional.softplus(z) + 1e-6
 
     pyro.deterministic("z", z)
@@ -21,6 +31,16 @@ def DirichletMultinomialLikelihood(z, Y, training, samples_plate, species_plate)
 
 
 def BernoulliLikelihood(z, Y, training, samples_plate, species_plate):
+    """
+    Bernoulli likelihood for modeling presence-absence data.
+
+    :param z: Sum from LMC of environmental and spatial components as a tensor of shape [n_samples, n_species].
+    :param Y: Species occurrence/abundance data as a tensor of shape [n_samples, n_species].
+    :param training: Boolean to indicate training or prediction mode, thus "masking" the observations during prediction
+    :param samples_plate: pyro.plate for samples
+    :param species_plate: pyro.plate for species
+    :return: None
+    """
     pyro.deterministic("z", z)
 
     with samples_plate, species_plate:
